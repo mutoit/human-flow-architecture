@@ -24,14 +24,10 @@
 //
 // Rev16: el color deja de venir solo del estado (on/soft/off) — cada
 // capa anatómica tiene su propio matiz (`LAYER_HUE`, catálogo cerrado
-// de 7 `anatomyId`, spec DATASET_PROMPT §3.3 — funciona con cualquier
-// dataset, no está atado a vitamina D), el estado modula brillo/
-// saturación sobre ese matiz. El radio de nodo pasa a depender de la
-// severidad real (`|ratio-1|` de `nodeStates`, prop nueva) en vez de
-// solo `critical`/`isPrimary`. `computeLayout` reparte cada capa en su
-// propio sector angular (antes: anillo completo de 360°, las capas se
-// mezclaban visualmente) — sigue siendo un layout calculado, no
-// coordenadas fijas.
+// de 7 `anatomyId`). El radio de nodo refleja el state del lookup de
+// findings (no un ratio calculado). 4º estado visual: `split`
+// (contradictorio). `computeLayout` reparte cada capa en su propio
+// sector angular — layout calculado, no coordenadas fijas.
 
 import { useEffect, useRef, useState } from 'react'
 
@@ -43,8 +39,21 @@ const MAX_RADIUS = 300
 const ZOOM_MIN = 0.6
 const ZOOM_MAX = 4
 
-const REACH_TO_STATE = { hit: 'on', faint: 'soft', spared: 'off' }
-const STATE_LABEL = { on: 'Activo', soft: 'Rozado', off: 'Apagado' }
+const REACH_TO_STATE = { hit: 'on', faint: 'soft', spared: 'off', contradictorio: 'split' }
+const STATE_LABEL = { on: 'Activo', soft: 'Rozado', off: 'Apagado', split: 'Contradictorio' }
+const SPLIT_HUE = 280
+
+function drawStateOf(reachState) {
+  return reachState === 'split' ? 'on' : reachState
+}
+
+function drawHueOf(reachState, hue) {
+  return reachState === 'split' ? SPLIT_HUE : hue
+}
+
+function isHot(state) {
+  return state === 'on' || state === 'split'
+}
 
 // Matiz por capa anatómica (catálogo cerrado de 7, no por dataset
 // concreto) — asociación visual convencional: sangre=rojo,
@@ -68,8 +77,7 @@ function hsla(h, s, l, a) {
 /** Sector angular por capa (zona propia, no se mezclan) + anillo por
  * capa (distancia al centro) + banda dentro del sector si hay muchos
  * nodos. Nodos primarios van al centro, sea cual sea su capa. Radio de
- * cada nodo ahora refleja severidad real (`severityById`: ratio de
- * `nodeStates`, 1 = normal), no solo `critical`. */
+ * cada nodo refleja el state del lookup (1 = sin hallazgo). */
 function computeLayout(layers, nodes, severityById = {}) {
   const sortedLayers = [...layers].sort((a, b) => a.id - b.id)
   const nLayers = Math.max(1, sortedLayers.length)
@@ -110,7 +118,7 @@ function computeLayout(layers, nodes, severityById = {}) {
       const posInBand = Math.floor(i / bands)
       const angle = start + ((posInBand + 0.5) / perBand) * span
       const radius = ring + band * bandGap
-      const base = node.critical ? 18 : 14
+      const base = node.isPrimary ? 18 : 14
       positions.set(node.id, {
         x: CENTER.x + Math.cos(angle) * radius,
         y: CENTER.y + Math.sin(angle) * radius,
@@ -218,7 +226,8 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
   useEffect(() => {
     const severityById = {}
     for (const node of dataset.nodes) {
-      severityById[node.id] = nodeStates?.[node.id]?.ratio ?? 1
+      const s = nodeStates?.[node.id]?.state
+      severityById[node.id] = s === 'critical' ? 2 : s === 'contradictorio' ? 1.7 : s === 'alert' ? 1.35 : s === 'normal' ? 1.15 : 1
     }
     const positions = computeLayout(layers, dataset.nodes, severityById)
 
@@ -235,7 +244,7 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
       const stateA = REACH_TO_STATE[nodeReach[edge.from] ?? 'spared']
       const stateB = REACH_TO_STATE[nodeReach[edge.to] ?? 'spared']
       if (stateA === 'off' || stateB === 'off') return
-      const strength = stateA === 'on' && stateB === 'on' ? 1 : 0.45
+      const strength = isHot(stateA) && isHot(stateB) ? 1 : 0.45
       const n = 2 + Math.round(strength * 3)
       for (let k = 0; k < n; k++) {
         particles.push({ edge: i, t: Math.random(), speed: 0.0025 + Math.random() * 0.0035 * strength, size: 0.9 + Math.random() * 1.6 })
@@ -475,7 +484,7 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
         const stateA = REACH_TO_STATE[nodeReach[edge.from] ?? 'spared']
         const stateB = REACH_TO_STATE[nodeReach[edge.to] ?? 'spared']
         const active = stateA !== 'off' && stateB !== 'off'
-        const isOn = stateA === 'on' && stateB === 'on'
+        const isOn = isHot(stateA) && isHot(stateB)
         const hue = nodeHue.get(edge.to) ?? DEFAULT_HUE
         const { cx, cy } = curvePoints(a, b)
 
@@ -520,7 +529,7 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
           const pt = pointOnCurve(a, b, cx, cy, p.t)
           const stateA = REACH_TO_STATE[nodeReach[edge.from] ?? 'spared']
           const stateB = REACH_TO_STATE[nodeReach[edge.to] ?? 'spared']
-          const isOn = stateA === 'on' && stateB === 'on'
+          const isOn = isHot(stateA) && isHot(stateB)
           const nodeA = nodeById.get(edge.from)
           const nodeB = nodeById.get(edge.to)
           const dim = focus && nodeA?.layer !== focus && nodeB?.layer !== focus
@@ -545,12 +554,13 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
       dataset.nodes.forEach((node) => {
         const pos = positions.get(node.id)
         if (!pos) return
-        const state = REACH_TO_STATE[nodeReach[node.id] ?? 'spared']
+        const reachState = REACH_TO_STATE[nodeReach[node.id] ?? 'spared']
+        const state = drawStateOf(reachState)
         const isSel = node.id === selectedId
         const isHov = node.id === hoverId
         const dim = focus && node.layer !== focus
         const isHub = !!node.isPrimary
-        const hue = nodeHue.get(node.id) ?? DEFAULT_HUE
+        const hue = drawHueOf(reachState, nodeHue.get(node.id) ?? DEFAULT_HUE)
 
         const rr = pos.r * (isSel || isHov ? 1.1 : 1)
         const pulse = state === 'on' && !dim ? 1 + Math.sin(time * 0.0025 + pos.x) * 0.03 : 1
@@ -772,6 +782,9 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
         </span>
         <span>
           <i className="neural-graph__pip neural-graph__pip--off" /> Apagado
+        </span>
+        <span>
+          <i className="neural-graph__pip neural-graph__pip--split" /> Contradictorio
         </span>
       </div>
     </div>

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { propagate, pathFromPrimary } from './engine/propagation.js'
-import { reachFromStatus } from './engine/visualState.js'
+import { reachFromState } from './engine/visualState.js'
 import LayerList from './layers/LayerList.jsx'
 import LayerCascade from './layers/LayerCascade.jsx'
 import NeuralGraph from './layers/NeuralGraph.jsx'
+import FlowSummary from './layers/FlowSummary.jsx'
 import DetailCard from './detail/DetailCard.jsx'
 import ScenarioSelector from './detail/ScenarioSelector.jsx'
 import DensitySelector from './detail/DensitySelector.jsx'
@@ -20,12 +21,13 @@ function initialDensity() {
   return stored === 's' || stored === 'm' || stored === 'l' ? stored : 'm'
 }
 
+const REACH_RANK = { spared: 0, faint: 1, contradictorio: 2, hit: 3 }
+
 function aggregateReach(nodeIds, nodeReach) {
   let best = 'spared'
   for (const id of nodeIds) {
     const r = nodeReach[id] ?? 'spared'
-    if (r === 'hit') return 'hit'
-    if (r === 'faint') best = 'faint'
+    if ((REACH_RANK[r] ?? 0) > (REACH_RANK[best] ?? 0)) best = r
   }
   return best
 }
@@ -36,7 +38,6 @@ export default function App() {
   const scenarios = dataset.config.severityScenarios ?? []
   const [scenarioId, setScenarioId] = useState(scenarios[1]?.id ?? scenarios[0]?.id)
   const scenario = scenarios.find((s) => s.id === scenarioId) ?? scenarios[0]
-  const primaryValue = scenario?.primaryValue ?? dataset.config.sliderDefault
 
   // Ficha A: selección global (rail de capas + muñeco).
   const [activeLayerId, setActiveLayerId] = useState(dataset.layers[0]?.id)
@@ -45,17 +46,15 @@ export default function App() {
   const [cascadeNodeId, setCascadeNodeId] = useState(null)
   const [layersView, setLayersView] = useState('capas')
 
-  const { nodeStates, traversalOrder, converged } = useMemo(() => propagate(dataset, primaryValue), [dataset, primaryValue])
-
-  const affectedIds = useMemo(() => new Set(traversalOrder.map((t) => t.id)), [traversalOrder])
+  const { nodeStates } = useMemo(() => propagate(dataset, scenario?.id), [dataset, scenario?.id])
 
   const nodeReach = useMemo(() => {
     const m = {}
     for (const node of dataset.nodes) {
-      m[node.id] = reachFromStatus(nodeStates[node.id]?.status, affectedIds.has(node.id))
+      m[node.id] = reachFromState(nodeStates[node.id])
     }
     return m
-  }, [dataset, nodeStates, affectedIds])
+  }, [dataset, nodeStates])
 
   const layerReach = useMemo(() => {
     const m = {}
@@ -83,9 +82,11 @@ export default function App() {
     // Reimportar dataset reinicia la selección al primer nodo de la primera capa.
     const firstLayer = dataset.layers[0]?.id
     const firstNode = dataset.nodes.find((n) => n.layer === firstLayer)?.id ?? null
+    const list = dataset.config.severityScenarios ?? []
     setActiveLayerId(firstLayer)
     setActiveNodeId(firstNode)
     setCascadeNodeId(null)
+    setScenarioId((id) => (list.some((s) => s.id === id) ? id : (list[1]?.id ?? list[0]?.id)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset])
 
@@ -115,12 +116,7 @@ export default function App() {
           <span className="app__dataset-label" title="Dataset cargado actualmente">
             {dataset.config?.name ?? 'Dataset'}
           </span>
-          <VitalsBar dataset={dataset} nodeStates={nodeStates} unit={dataset.config.unit} />
-          {converged === false && (
-            <span className="convergence-warning" title="El dataset tiene un ciclo de retroalimentación que no se ha estabilizado — cifras aproximadas.">
-              ⚠ No converge
-            </span>
-          )}
+          <VitalsBar dataset={dataset} nodeStates={nodeStates} />
         </div>
 
         <div className="layout">
@@ -128,7 +124,7 @@ export default function App() {
             <LayerList layers={dataset.layers} activeLayerId={activeLayerId} layerReach={layerReach} onSelect={selectLayer} />
           </div>
 
-          <div className={`layout__views${layersView === 'grafo' ? ' layout__views--grafo' : ''}`}>
+          <div className="layout__views">
             <div className="layout__panels">
               <div className="layout__panel">
                 <p className="layout__panel-label">Resultado global — capa activa</p>
@@ -190,6 +186,8 @@ export default function App() {
                   onSelectNode={setCascadeNodeId}
                 />
               )}
+
+              <FlowSummary dataset={dataset} nodeReach={nodeReach} />
             </div>
           </div>
         </div>

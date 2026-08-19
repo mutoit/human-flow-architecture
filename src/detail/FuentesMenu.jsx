@@ -40,7 +40,10 @@ function openReadingsTab(dataset) {
           <h2>${g.nodeName}</h2>
           <ul>
             ${g.references
-              .map((ref) => `<li><a href="${refUrl(ref)}" target="_blank" rel="noopener noreferrer">${ref.title}</a></li>`)
+              .map((ref) => {
+                const extra = [ref.evidenceTier, ref.claimUsage].filter(Boolean).join(' · ')
+                return `<li><a href="${refUrl(ref)}" target="_blank" rel="noopener noreferrer">${ref.title}</a>${extra ? `<p class="meta">${extra}</p>` : ''}</li>`
+              })
               .join('')}
           </ul>
         </section>`
@@ -58,6 +61,7 @@ function openReadingsTab(dataset) {
   li{margin:0.35rem 0;}
   a{color:#eceae4;text-decoration:none;}
   a:hover{color:#d4af37;}
+  .meta{margin:0.15rem 0 0.6rem;color:#9a968c;font-size:0.8rem;}
   .empty{color:#6b6860;font-style:italic;}
 </style></head>
 <body><h1>Fuentes — ${dataset.config?.name ?? 'dataset'}</h1>${body}</body></html>`
@@ -76,7 +80,10 @@ function downloadReadingsList(dataset) {
   } else {
     for (const g of groups) {
       lines.push(`## ${g.nodeName}`, '')
-      for (const ref of g.references) lines.push(`- [${ref.title}](${refUrl(ref)})`)
+      for (const ref of g.references) {
+        const extra = [ref.evidenceTier, ref.claimUsage].filter(Boolean).join(' — ')
+        lines.push(`- [${ref.title}](${refUrl(ref)})${extra ? ` — ${extra}` : ''}`)
+      }
       lines.push('')
     }
   }

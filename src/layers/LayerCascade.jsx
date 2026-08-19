@@ -10,12 +10,21 @@
 
 import { useState } from 'react'
 
-const REACH_LABEL = { hit: 'activa', faint: 'rozada', spared: 'fuera' }
+const REACH_LABEL = { hit: 'activa', faint: 'rozada', spared: 'fuera', contradictorio: 'contradice' }
+const REACH_RANK = { spared: 0, faint: 1, contradictorio: 2, hit: 3 }
 
 function countByReach(nodeIds, nodeReach) {
-  const c = { hit: 0, faint: 0, spared: 0 }
+  const c = { hit: 0, faint: 0, spared: 0, contradictorio: 0 }
   for (const id of nodeIds) c[nodeReach[id] ?? 'spared']++
   return c
+}
+
+function layerReachOf(counts) {
+  let best = 'spared'
+  for (const k of Object.keys(counts)) {
+    if (counts[k] > 0 && (REACH_RANK[k] ?? 0) > (REACH_RANK[best] ?? 0)) best = k
+  }
+  return best
 }
 
 export default function LayerCascade({ layers, dataset, nodeReach, onSelectNode }) {
@@ -33,7 +42,7 @@ export default function LayerCascade({ layers, dataset, nodeReach, onSelectNode 
         const nodes = dataset.nodes.filter((n) => n.layer === layer.id)
         const nodeIds = nodes.map((n) => n.id)
         const counts = countByReach(nodeIds, nodeReach)
-        const layerReach = counts.hit > 0 ? 'hit' : counts.faint > 0 ? 'faint' : 'spared'
+        const layerReach = layerReachOf(counts)
         const open = layer.id === openLayerId
 
         return (
@@ -51,7 +60,8 @@ export default function LayerCascade({ layers, dataset, nodeReach, onSelectNode 
                 <span className="layer-cascade__name">{layer.name}</span>
                 <span className={`layer-cascade__badge layer-cascade__badge--${layerReach}`}>{REACH_LABEL[layerReach]}</span>
                 <span className="layer-cascade__role">
-                  {counts.hit} activos · {counts.faint} rozados · {counts.spared} fuera
+                  {counts.hit} activos · {counts.faint} rozados
+                  {counts.contradictorio ? ` · ${counts.contradictorio} contradicen` : ''} · {counts.spared} fuera
                 </span>
               </span>
             </button>
@@ -60,7 +70,7 @@ export default function LayerCascade({ layers, dataset, nodeReach, onSelectNode 
               <div className="layer-cascade__subs">
                 {nodes.map((node) => {
                   const reach = nodeReach[node.id] ?? 'spared'
-                  const state = reach === 'hit' ? 'on' : reach === 'faint' ? 'soft' : 'off'
+                  const state = reach === 'hit' ? 'on' : reach === 'contradictorio' ? 'split' : reach === 'faint' ? 'soft' : 'off'
                   return (
                     <button
                       type="button"
