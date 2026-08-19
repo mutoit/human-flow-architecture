@@ -48,11 +48,18 @@ Un solo archivo JSON por pathway, importable desde la UI (input file / drag-drop
       "critical": true,
       "thresholdMin": 20,
       "thresholdMax": 100,
-      "lagHours": 6
+      "lagHours": 6,
+      "description": "Convierte 25(OH)D a 1,25(OH)₂D mediante la enzima CYP27B1."
     }
   ],
   "edges": [
-    { "from": "liver", "to": "kidney", "relationship": "activates", "strength": 0.9 }
+    {
+      "from": "liver",
+      "to": "kidney",
+      "relationship": "activates",
+      "strength": 0.9,
+      "modulation": { "type": "linear" }
+    }
   ]
 }
 ```
@@ -62,6 +69,12 @@ que lo conecten a nodos existentes. El motor lo posiciona y calcula su flujo
 sin tocar código. Validación mínima al importar: ids únicos, edges apuntan a
 nodos existentes, `layer` entre 1 y el máximo definido en `layers`.
 
+`description` es opcional (texto libre, se muestra en el panel de detalle).
+`modulation` en el edge es opcional; el motor MVP solo implementa
+`type: "linear"` — el campo deja la puerta abierta a `"sigmoid"` /
+`"saturation"` en una expansión futura sin cambiar el formato del JSON. Si
+`modulation` falta, se asume lineal.
+
 ## 3. Motor de propagación (MVP)
 
 Propagación de una sola variable primaria, un input por nodo (sin AND/OR
@@ -70,6 +83,9 @@ multi-dependencia, sin loops de feedback — ver limitaciones §1). Algoritmo:
 1. El nodo con `primaryVariable` recibe el valor del slider.
 2. BFS por `edges` desde ahí: cada nodo destino calcula su valor con
    modulación lineal simple ponderada por `strength` del edge entrante.
+   La función de modulación se resuelve por `edge.modulation.type`
+   (dispatch simple); MVP solo implementa `"linear"` — otros tipos quedan
+   `needs verification`/no soportados hasta una expansión futura.
 3. Color por nodo según `thresholdMin`/`thresholdMax`: verde/ámbar/rojo.
 4. `critical: true` fuera de rango dispara estado de alerta visual.
 5. Se registra el orden de recorrido (para animación) y el `lagHours`
@@ -97,6 +113,10 @@ genérica — el layout es fijo, no un grafo libre).
   3. Combinación de ambas.
 - Clic en nodo → panel de detalle lateral (nombre, capa, inputs/outputs,
   estado, descripción) — progressive disclosure, según `ux.md` §3.
+  `description` viene del campo del nodo. **Inputs/outputs se derivan de
+  las edges, no se declaran en el nodo:** inputs = nodos con una edge cuyo
+  `to` es este nodo; outputs = nodos a los que este nodo apunta (`from` =
+  este nodo). Cálculo en el momento de abrir el panel, no precalculado.
 
 ## 5. Stack y estructura
 
