@@ -1,6 +1,7 @@
 # Catálogo de temas + esquema de evidencia en cascada (diseño)
 
-**Fecha:** 2026-08-19
+**Fecha:** 2026-08-19 (revisión: agujeros de estado contradictorio, claimUsage,
+obsolescencia, versionado y revisión tapados tras crítica de segunda pasada)
 **Estado:** Diseño aprobado en conversación, pendiente de implementación
 **Precede a:** este documento sustituye el modelo de cálculo descrito en
 `docs/superpowers/specs/2026-08-19-visor-flujo-mvp-design.md` (motor de
@@ -63,11 +64,14 @@ Reglas:
   contradicción. La ficha de detalle, al abrirse, muestra todos los
   findings de ese nodo/escenario por separado, cada uno con su propia
   cita — nunca se promedian ni se elige un ganador.
-- `claimUsage` es obligatorio si hay `citation` — describe qué parte
-  exacta del estudio sustenta el `summary` (ej. "Tabla 3, grupo <6h",
-  "conclusión del meta-análisis, no hallazgo primario"). No es
-  decorativo: es lo que permite a un usuario verificar la afirmación sin
-  releer el paper entero.
+- `claimUsage` describe qué parte exacta del estudio sustenta el
+  `summary` (ej. "Tabla 3, grupo <6h", "conclusión del meta-análisis, no
+  hallazgo primario"). **Es opcional en el momento del import** — quien
+  genera el dataset (IA o persona) normalmente solo tiene PMID/título,
+  no el paper completo, y no puede rellenarlo con honestidad. Pasa a ser
+  **obligatorio para que un finding cuente en el checklist de promoción
+  a `available`** (§3.4/§6.1) — lo completa el revisor humano tras leer
+  la fuente real, no la fuente del dataset.
 - `verified` / `verifiedAt` los rellena el **pipeline de verificación de
   citas** (§3.3), nunca la fuente del dataset directamente. Un finding
   con `citation` pero `verified: false` se muestra igualmente en la
@@ -75,6 +79,23 @@ Reglas:
   — revisar manualmente".
 - Si un nodo no tiene ningún `finding` para el escenario activo, el nodo
   no se activa. No se interpola ni se infiere desde otro escenario.
+
+### 1.0 Estado del nodo cuando los findings discrepan
+
+Si los `findings` de un nodo/escenario no coinciden todos en el mismo
+`state`, el nodo **no** se resuelve a favor de ninguno — ni por mayoría
+de estudios (contar votos no mide fuerza de evidencia) ni por ningún
+otro cálculo. Se pinta con un cuarto estado propio, `"contradictorio"`
+(visualmente distinto de normal/alert/critical), derivado de una regla
+puramente estructural: *¿hay más de un `state` distinto entre los
+findings de este nodo/escenario? sí/no* — no es un juicio clínico, es un
+hecho sobre los datos. La ficha de detalle sigue mostrando todos los
+findings en paralelo.
+
+Cada `citation` gana un campo opcional `evidenceTier` (`"meta-analysis"
+| "rct" | "cohort" | "case-report" | "expert-opinion"`), usado **solo
+para ordenar la presentación** en la ficha (meta-análisis primero) —
+nunca para calcular o desempatar el estado del nodo.
 
 ### 1.1 Escenarios definidos por tema
 
@@ -97,6 +118,19 @@ leptina, lo que reduce saciedad"), pero:
 - Cada `edge` gana un campo `citation` propio (mismo shape que en
   findings) — la afirmación de causalidad entre dos nodos es en sí misma
   una cita que debe poder verificarse, igual que el estado de un nodo.
+
+### 1.3 Obsolescencia de una cita
+
+Toda `citation` (en findings o en edges) gana un campo opcional
+`supersededBy` (apunta al `pmid`/`doi` de otra citación en el mismo
+dataset). Lo rellena un curador humano cuando sabe que un estudio más
+reciente reemplaza a uno antiguo — la UI muestra la cita superada
+tachada/con aviso ("reemplazada por estudio más reciente"), sin
+eliminarla del histórico. **No incluye re-verificación periódica
+automática contra literatura nueva** — eso es un sistema de vigilancia
+continua (cron + búsqueda + criterio de qué cuenta como reemplazo) que
+queda fuera de alcance de este spec, no como deuda oculta sino como
+ampliación futura explícita a diseñar aparte si se necesita.
 
 ## 2. Catálogo de temas
 
@@ -126,6 +160,55 @@ relacionales — el sistema sigue siendo fundamentalmente "JSON-driven",
 solo que ahora la fuente vive en una base de datos consultable en lugar
 de en un archivo suelto. Búsqueda por `name`/`aliases`/`tags` (ILIKE o
 full-text search de Postgres, suficiente para el volumen esperado).
+
+`topics.dataset` siempre refleja la última versión. El historial vive
+aparte, en `topic_versions`:
+
+```
+topic_versions
+  id             uuid, pk
+  topic_id       uuid, fk -> topics.id
+  version        int              -- incremental por topic
+  dataset        jsonb            -- snapshot completo en ese momento
+  changelog      text             -- qué cambió y por qué, texto libre
+  created_at     timestamptz
+```
+
+Sin esto no se puede auditar qué cambió entre una versión publicada y la
+siguiente, ni revertir un dataset a un estado anterior si una
+actualización introduce un error — imprescindible en algo que se
+presenta como base de evidencia.
+
+### 2.3 Revisión antes de `available`
+
+`status: 'pending_review'` nunca lo promueve quien subió el dataset por
+el mero hecho de subirlo — eso sería auto-publicación. Se añade
+`topic_reviews`:
+
+```
+topic_reviews
+  id             uuid, pk
+  topic_id       uuid, fk -> topics.id
+  reviewer       text             -- quién revisó
+  checklist      jsonb            -- respuestas al checklist, ver abajo
+  approved_at    timestamptz
+```
+
+Checklist mínimo obligatorio por revisión (todo debe ser `true` para
+poder promover):
+
+- Cada `finding` incluido tiene `claimUsage` relleno tras leer la fuente
+  real (no solo el título/abstract).
+- Los `findings` con `verified: false` fueron revisados uno a uno:
+  descartados, o mantenidos con el aviso visible intacto.
+- No hay ningún dato numérico o cita con apariencia de verificado que en
+  realidad no lo esté.
+
+Hoy el proyecto es de una sola persona, así que **1 fila en
+`topic_reviews` con checklist completo promueve el topic a
+`available`**. La tabla está diseñada para que exigir varias
+aprobaciones independientes en el futuro (si el proyecto crece a
+equipo) sea subir un umbral de conteo, no rediseñar el esquema.
 
 ### 2.2 Flujo de búsqueda
 
@@ -181,8 +264,9 @@ Manejo de error en capas — nunca todo-o-nada:
   `pending_review` con un contador visible de "0/N citas verificadas",
   para que la revisión humana sepa que probablemente hay que rehacerlo.
 - Un dataset con `status: 'pending_review'` solo pasa a `'available'`
-  mediante una acción explícita de revisión humana (hoy: el propio
-  usuario). No hay promoción automática por número de citas verificadas.
+  cuando existe al menos 1 fila en `topic_reviews` (§2.3) con el
+  checklist completo — nunca por número de citas verificadas, ni por
+  quien lo subió marcándolo él mismo sin pasar el checklist.
 
 ## 4. Qué se descarta (explícito, para que no se reintroduzca sin querer)
 
@@ -195,12 +279,20 @@ Manejo de error en capas — nunca todo-o-nada:
   entidades canónico que no existe todavía (ver limitaciones).
 - El motor de cálculo por ratio/threshold y el promedio ponderado de
   `strength` — descartados, ver `docs/CORE.md`.
+- Resolver `findings` contradictorios por mayoría de estudios o por
+  cualquier fórmula propia — descartado por el mismo motivo que el
+  motor de ratio: contar votos no es evidencia. Ver §1.0.
+- Re-verificación periódica automática de citas contra literatura nueva
+  — el campo `supersededBy` (§1.3) es manual; la vigilancia continua
+  queda fuera de este spec.
 
 ## 5. Fuera de alcance de este spec (no es deuda oculta, es explícito)
 
-- Panel de revisión humana para promover `pending_review` → `available`
-  (hoy: edición directa en la base de datos por el propio usuario).
-- Autenticación / roles de revisor.
+- Panel de UI para rellenar el checklist de `topic_reviews` (hoy: fila
+  insertada directamente en la base de datos por el propio usuario).
+- Autenticación / roles de revisor, y exigir más de 1 aprobación — el
+  esquema de `topic_reviews` ya lo admite sin rediseño, solo no se activa
+  todavía (ver §2.3).
 - Fusión de temas superpuestos.
 - Cualquier automatización server-side de la generación (§3 queda
   manual a propósito).
@@ -214,3 +306,8 @@ Manejo de error en capas — nunca todo-o-nada:
 - El nivel de detalle de los nodos sigue limitado por lo que la
   literatura realmente diferencia — este spec no cambia esa limitación,
   solo la forma en que se citan los hallazgos.
+- El checklist de `topic_reviews` (§2.3) reduce el riesgo de
+  auto-publicación sin criterio, pero con un solo revisor (el propio
+  proyecto hoy) no es revisión por pares independiente real — es una
+  mejora honesta sobre "sin ningún control", no una garantía equivalente
+  a peer review.
