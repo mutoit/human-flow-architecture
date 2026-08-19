@@ -1,8 +1,8 @@
 # Visor de Flujo Biofísico — MVP (diseño)
 
-**Fecha:** 2026-08-19 (revisión visual: 2026-08-19)
-**Estado:** Revisión 2 — rediseño visual aprobado en chat, spec actualizada; NO implementado todavía
-**Fuentes:** `core estructura.md`, `core expansion.md`, `ux.md` (raíz del repo), referencia visual aportada por el usuario (silueta + lista de capas + ficha de detalle)
+**Fecha:** 2026-08-19 (revisión visual: 2026-08-19; referencia de código encontrada: 2026-08-19; segunda vista añadida: 2026-08-19)
+**Estado:** Revisión 4 — dos vistas de referencia real encontradas (`GROK/` y `GROK/segunda vista/`), a fusionar lado a lado; spec actualizada, NO implementado todavía
+**Fuentes:** `core estructura.md`, `core expansion.md`, `ux.md` (raíz del repo), referencia visual aportada por el usuario (silueta + lista de capas + ficha de detalle), **`GROK/` (app TanStack Start/React/TS ya construida por el usuario, vista "muñeco")**, **`GROK/segunda vista/` (paquete HTML/CSS/JS vanilla independiente, vista "grafo por subcapas")**
 
 **Historial:**
 - Rev 1 (2026-08-19): grafo de 7 capas apiladas en SVG, nodos-círculo con
@@ -11,10 +11,16 @@
   muere") — el código de esa revisión (`src/graph/*`, `EdgeFlow`,
   `NodeCard`, etc.) queda obsoleto y debe eliminarse en la próxima
   implementación, no reutilizarse.
-- Rev 2 (este documento): silueta humana + lista numerada de capas + ficha
-  de detalle ampliada, inspirado en referencia visual del usuario. Motor de
-  propagación (`engine/propagation.js`) y modelo de datos base **sí se
-  conservan** — el cambio es de capa visual, no de motor.
+- Rev 2 (2026-08-19): silueta humana + lista numerada de capas + ficha de
+  detalle ampliada, inspirado en referencia visual del usuario. Diseño
+  descrito de memoria/inferido, sin código de referencia real.
+- Rev 3 (este documento): el usuario señaló `E:\HumanFlow\GROK\` — una app
+  completa ya construida ("Vitamina D · Alcance D") que implementa el
+  mismo concepto visual de Rev 2 con calidad de producción real (SVG de
+  silueta, lista de capas, ficha de detalle, selector de severidad, tiras
+  de labs). **Pasa a ser la referencia visual primaria** — Rev 2 queda
+  como intención de diseño confirmada; Rev 3 documenta qué portar y qué
+  diverge de nuestro motor. Ver §8.
 
 ## 1. Alcance
 
@@ -286,3 +292,210 @@ mantiene, pero la presentación cambia a `DetailCard`/import se reubica).
   nodos solo son accesibles desde la lista de capas, sin callout visual.
 - **(Rev 2)** `references` nunca se genera automáticamente — si el dataset
   no trae citas reales, la sección se omite (evita inventar bibliografía).
+
+## 8. Referencia real encontrada — `GROK/` (Rev 3)
+
+Carpeta `E:\HumanFlow\GROK\` — app propia del usuario, stack TanStack
+Start + React + TypeScript + Tailwind, con auth/PWA/DB montados
+(`src/lib/auth`, `migrations/`, `.vercel/`). **No se adopta el stack**
+(HumanFlow sigue Vite+React+JSX plano, sin backend) — se porta solo la
+**capa visual**, verificada contra el código fuente real de
+`GROK/src/components/`:
+
+| Componente GROK | Rol | Puerto a HumanFlow (Rev 2 target) |
+|---|---|---|
+| `body-figure.tsx` + `src/lib/anatomy.ts` (`HOTSPOTS`, `TAGS`, `CX`, `VB`) | Silueta SVG con 7 `<g>` de trazado (uno por capa), opacidad por estado (`op()`/`LAYER_OPACITY`), callout línea+etiqueta hacia la capa activa, círculos-hotspot clicables | `src/body/BodySilhouette.jsx` + `bodyRegions.js` — **mismo enfoque exacto**, trazado SVG propio por capa (no una silueta única con puntos, sino 7 dibujos superpuestos que aparecen/desaparecen) |
+| `layer-rail.tsx` | Lista numerada 01–07, opacidad por `dim`/`passed`/`active`, disabled si `reach === "spared"` | `src/layers/LayerList.jsx` |
+| `layer-detail.tsx` | Ficha: badges (capa + reach + evidencia), título, `where`, `lead`, "en esta carencia" (`what` + `signs[]`), grid 2 tarjetas (`lag`/`enzymes`), lecturas con links PubMed | `src/detail/DetailCard.jsx` |
+| `severity-switch.tsx` | Selector de severidad tipo tabs (2 opciones aquí; Rev 2 pide 3: normal/moderada/severa) | `src/detail/ScenarioSelector.jsx` |
+| `labs-strip.tsx` | Tarjetas de vitales de cabecera con tono ok/warn/bad | `src/detail/VitalsBar.jsx` |
+| `flow-app.tsx` | Orquestador: estado `severity`/`activeIndex`/`playIndex`/`playing`/`settled`, cascada con `setTimeout` (720ms/paso), `runCascade()` | Lógica de Play/replay a portar a `App.jsx`, adaptada a nuestro `traversalOrder` del motor en vez de `lastReachedIndex` fijo |
+| `src/lib/visual-state.ts` (`visualState()`, `LAYER_OPACITY`) | Máquina de 5 estados visuales (`ahead/active/passed/faint/spared`) → opacidad | Se porta tal cual como función pura, reutilizable con nuestro `nodeStates` |
+
+**Divergencia clave — contenido fijo vs. motor genérico (no trivial, decidir antes de implementar):**
+GROK no tiene motor de propagación por grafo: `flow-data.ts` es un
+**array `LAYERS` estático** con bloques `moderate`/`severe` **escritos a
+mano** (`reach`, `what`, `signs`) por cada una de las 2 severidades. No
+hay `nodes`/`edges`/`thresholds` ni BFS — es contenido editorial fijo,
+no un dataset importable. Nuestro Rev 2 pide lo contrario: motor genérico
+con JSON importable, N nodos por capa, propagación por edges. **Opciones
+para Rev 3, a decidir con el usuario antes de tocar código:**
+1. **Motor decide, GROK da la piel:** mantener `engine/propagation.js` +
+   dataset JSON (nodos/edges/thresholds) tal como en Rev 2 §2–3, y que
+   `LayerDetail`/`BodySilhouette`/etc. consuman `nodeStates` del motor en
+   vez de bloques `moderate`/`severe` escritos a mano. Preserva la
+   promesa "añadir un nodo = editar JSON, sin tocar código". Requiere
+   mapear el `status` del motor (ok/warning/critical) a los 3 `ReachKind`
+   de GROK (`hit`/`faint`/`spared`) y generar `what`/`signs` desde los
+   campos ya definidos en Rev 2 §2 (`description`,
+   `symptomsBySeverity`).
+2. **Copiar el modelo de GROK tal cual:** contenido fijo por capa y
+   severidad (2–3 escenarios cerrados), sin motor de grafo genérico. Más
+   rápido de portar 1:1, pero **abandona el requisito de import JSON
+   dinámico** de la spec original (`core estructura.md`) — cualquier
+   pathway nuevo requeriría escribir código, no solo JSON.
+
+Sin resolver esta divergencia el "puerto" no es solo visual — cambia el
+contrato de datos.
+
+**Decisión del usuario (2026-08-19): opción 1 — "Motor decide, GROK da la
+piel".** Se mantiene `engine/propagation.js` + dataset JSON (nodos/edges/
+thresholds, Rev 2 §2–3) como fuente de verdad. Los componentes portados
+de GROK (`BodySilhouette`, `LayerList`, `DetailCard`, `ScenarioSelector`,
+`VitalsBar`) son puramente de presentación: reciben `nodeStates`/
+`traversalOrder` del motor como props y no contienen contenido editorial
+propio. Consecuencias concretas para el plan de ejecución:
+
+- Mapeo `status` del motor (`ok`/`warning`/`critical`) → `ReachKind` de
+  GROK (`hit`/`faint`/`spared`): `critical`→`hit`, `warning`→`faint`,
+  `ok`→`spared` (a falta de mejor señal; revisar con datos reales del
+  dataset vitamin-d.json ampliado).
+- `what`/`signs` de la ficha salen de `node.description` +
+  `node.symptomsBySeverity[escenarioActivo]` (ya definidos en Rev 2 §2),
+  no se escriben a mano por capa como en GROK.
+- La máquina de 5 estados visuales (`visualState()` de
+  `GROK/src/lib/visual-state.ts`) se porta tal cual — es pura función de
+  `reach`+`playIndex`/`playing`/`settled`, no depende del origen del dato.
+- Próximo paso: **okplan** de ejecución (Punto por Punto) para portar los
+  componentes de §8 sobre el motor Rev 2, sustituyendo Rev 1
+  (`src/graph/*`) por completo. No implementar sin ese plan.
+
+## 9. Segunda vista — `GROK/segunda vista/` (Rev 4)
+
+Paquete independiente (HTML/CSS/JS vanilla, sin build), verificado
+renderizando en navegador. Su propio `LEEME.md` ya lo describe como
+complemento, no sustituto: *"No sustituye el muñeco de la app"*. Vista:
+lista de 7 capas donde cada capa **se expande en subnodos** (ej. Órganos
+→ Hígado, Riñón, Intestino, Paratiroides, Páncreas), estado `on`/`soft`/
+`off` por subnodo y por capa, panel derecho con conteos (`n activos / n
+rozados / n apagados`) y detalle de la capa seleccionada.
+
+**Decisión del usuario (2026-08-19): las dos vistas se fusionan, una al
+lado de la otra**, no se sustituyen ni se elige una — pantallas anchas
+(2K/4K en adelante) tienen espacio de sobra; en 1080 debe seguir cabiendo
+sin romperse. Layout objetivo:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Zona 1 — vitales cabecera │ Zona 2 — severidad + replay             │
+├───────────┬─────────────────────────┬─────────────────────────────┤
+│ 01 Sangre │      SILUETA (muñoco)    │   GRAFO POR SUBCAPAS         │
+│ ...lista..│      (GROK/, §8)         │   (segunda vista, este §9)   │
+│           │                          │   01 Sangre ▸ 25OH-D · PTH…  │
+│           │                          │   02 Órganos ▸ Hígado · ...  │
+├───────────┴─────────────────────────┴─────────────────────────────┤
+│                     Zona 5 — Ficha de detalle (§4, DetailCard)      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+- **≥ breakpoint ancho** (a definir en okplan, orientativo `≥1440px`):
+  tres columnas — lista de capas | silueta | grafo de subcapas — con la
+  ficha de detalle debajo o en cuarta columna si cabe (a decidir con
+  medidas reales, no a ojo).
+- **< breakpoint** (incluye 1080p): las dos vistas visuales pasan a
+  pestañas/acordeón (Muñeco / Subcapas) bajo la misma lista de capas y la
+  misma ficha de detalle — nunca se solapan ni se cortan.
+- Selección de capa/nodo es **un solo estado compartido** (`activeNodeId`
+  en `App.jsx`): clicar un subnodo en el grafo de subcapas selecciona el
+  mismo nodo que clicar su región en la silueta o su fila en la lista —
+  las tres vistas están sincronizadas sobre el mismo `nodeStates` del
+  motor, no son independientes.
+
+**Mapeo de datos — esta vista encaja aún mejor con el motor genérico que
+la silueta:** `data.js` de esta vista ya modela "capa → lista de
+subnodos con estado", que es exactamente `dataset.nodes` agrupados por
+`node.layer`, con estado derivado de `nodeStates[node.id].status` (igual
+mapeo `critical→on(activo)`, `warning→soft(rozado)`, `ok→off(apagado)`
+que en §8, a validar con datos reales). No hace falta contenido nuevo:
+los mismos nodos del dataset Rev 2 alimentan silueta + grafo de subcapas
++ lista + ficha, un solo modelo, cuatro vistas sincronizadas.
+
+**Puerto a HumanFlow:**
+
+| Origen (`segunda vista/`) | Puerto |
+|---|---|
+| `app.js` → `renderCascade()` (capas expandibles + subs) | `src/graph2/LayerCascade.jsx` |
+| `app.js` → `renderDetail()` (panel derecho con conteos) | Se fusiona con `DetailCard.jsx` (§8) — mismo componente de ficha para ambas vistas, no duplicar |
+| `data.js` (`ALCANCE_V2`) | **No se porta como dato** — era contenido fijo; sus subnodos (higado, rinon, intestino…) se convierten en `nodes` reales del `vitamin-d.json` (Rev 2 §2) con su propio `layer`, `thresholdMin/Max`, etc. |
+| `styles.css` (tokens `--bg`, `--fg`, `--on`, `--soft`...) | **No se copian los hex propios** — se unifican a los tokens ya elegidos en §8 (`--color-bg: #0c0c0b`, etc.) para que ambas vistas compartan una sola paleta al estar lado a lado |
+
+**Pendiente para el okplan:** breakpoint exacto de colapso a
+tabs/acordeón, y si la cuarta zona (ficha) queda fija a la derecha en
+ancho o pasa a franja inferior en las tres columnas — deben decidirse con
+medidas reales durante la implementación, no en la spec.
+
+## 10. Explicación por nodo + fuentes obligatorias (Rev 4, requisito del usuario 2026-08-19)
+
+Dos requisitos nuevos, transversales a todas las vistas (§4, §8, §9):
+
+### 10.1 Todo nodo clicable explica su relación con el origen de la búsqueda
+
+No basta con mostrar `description`/`lead` del nodo de forma aislada.
+**Cada nodo interactivo** (capa, subnodo del grafo de subcapas, punto de
+la silueta — mismo `nodeId`, misma ficha) debe responder, al
+seleccionarse, a dos preguntas encadenadas:
+1. *"¿Qué es/qué pasa aquí?"* — ya cubierto por `description` +
+   `symptomsBySeverity` (Rev 2 §2, `lead`/`what`/`signs` de GROK, §8).
+2. *"¿Por qué está afectado, y cómo llegó la carencia hasta aquí desde el
+   nodo de origen (`primaryVariable`)?"* — **nuevo bloque en la ficha de
+   detalle**, no es un campo de datos nuevo: se deriva en runtime del
+   motor (`nodeConnections`/`traversalOrder` de `engine/propagation.js`,
+   ya existente) mostrando la cadena real recorrida, ej. *"25(OH)D →
+   Hígado (CYP2R1) → Riñón (CYP27B1) → Paratiroides"*, con el `strength`/
+   modulación de cada tramo si el dataset lo trae. Si el nodo no es
+   alcanzable desde el origen en el escenario activo, el bloque indica
+   explícitamente "no alcanzado en este escenario" (nunca se oculta en
+   silencio ni se inventa una ruta).
+
+Esto aplica igual de estricto a los subnodos del grafo de subcapas (§9)
+que a las capas del muñeco (§8) — es una sola ficha compartida (§4), un
+solo dato de origen (el motor), ninguna vista tiene contenido propio no
+derivado del dataset.
+
+### 10.2 Preparado para citas reales, nunca inventadas — botones/campos listos, contenido pendiente
+
+El dataset Rev 2 (§2) ya define `node.references[]` (`{title, url}`) con
+la regla **"nunca se inventa, si falta se omite"**. Rev 4 la refuerza y
+la extiende a nivel global, no solo por nodo:
+
+- Los campos/UI de referencias (por nodo y global, ver 10.3) se
+  implementan ahora, **vacíos o con los papers reales ya usados como
+  fuente de este dataset** (los mismos citados en `GROK/src/lib/
+  flow-data.ts` §8, que sí son PMIDs reales de PubMed verificables — se
+  pueden portar tal cual, son citas reales, no inventadas). Nodos nuevos
+  que el usuario añada más adelante sin cita real quedan con la sección
+  vacía hasta que se les añada — la UI no genera ni sugiere una fuente.
+- Toda URL de referencia debe apuntar a la fuente original (PubMed, DOI,
+  web del propio estudio) — nunca a un resumen de terceros no
+  verificado.
+
+### 10.3 Nueva zona: pestaña/sección "Fuentes" en la vista principal (obligatoria)
+
+Además de las referencias por nodo (ficha, §4), la vista principal
+necesita una **pestaña de nivel superior "Fuentes"**, visible siempre
+(no escondida dentro de un nodo), que:
+
+- Lista **todas** las referencias (`node.references[]`) de **todo** el
+  dataset cargado, deduplicadas por `url`/`pmid`, agrupadas por nodo o
+  capa de origen para que se sepa qué afirmación respalda cada cita.
+- Cada entrada es un link real (`target="_blank"`, `rel="noopener"`) a la
+  fuente original — el requisito no es "citar", es **enlazar** siempre a
+  algo verificable.
+- Incluye un botón **"Descargar dataset"** que exporta el JSON actual
+  cargado en la app (`Blob` + `<a download>` client-side, sin backend) —
+  así cualquiera puede auditar exactamente qué datos alimentan el
+  flujo/las cifras/las citas que está viendo. Si en el futuro se adjuntan
+  documentos fuente propios (PDFs de los papers, no solo el link), esta
+  misma pestaña es donde se listarían para descarga — fuera de alcance
+  de este MVP incluirlos ahora, pero la pestaña se diseña para poder
+  añadir esa lista sin rehacer la UI.
+- Si el dataset activo no trae ninguna referencia, la pestaña lo dice
+  explícitamente ("Este dataset no incluye fuentes verificadas todavía")
+  en vez de aparecer vacía sin explicación.
+
+**Touch graph nuevo para el okplan:** `src/detail/SourcesTab.jsx` (o
+integrado como pestaña dentro de la ficha existente, a decidir layout en
+okplan), más una función pura en `engine/propagation.js` o nuevo
+`engine/citations.js` que recorra `dataset.nodes[].references` y
+devuelva la lista deduplicada — no se recalcula a mano en cada
+componente.

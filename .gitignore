@@ -1,3 +1,14 @@
 node_modules/
 dist/
 .DS_Store
+
+# code-intel es una herramienta "drop-in" (no código de producto);
+# se excluye de git y del propio indexado para no meter ruido en mapRelated
+src/code-intel/
+
+# Material de referencia/brainstorming, no forma parte de la app —
+# excluido del repo público (decisión explícita al publicar en GitHub).
+/GROK/
+/canvas.textme
+/UXSKILL.md
+/core.md

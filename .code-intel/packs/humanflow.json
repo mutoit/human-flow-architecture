@@ -1,0 +1,34 @@
+{
+  "id": "humanflow",
+  "description": "HumanFlow — visor de flujo biofisico (motor de propagacion + capas + panel de detalle)",
+  "pathPrefix": "src",
+  "pathPrefixes": ["src/engine", "src/body", "src/layers", "src/detail", "src/data"],
+  "aliases": [
+    { "keys": ["motor", "propagacion", "propagar", "engine"], "to": ["propagate", "buildGraph", "topoSort", "reachableFrom", "statusFor", "resolveModulation", "nodeConnections", "pathFromPrimary"] },
+    { "keys": ["cadena causal", "origen", "por que"], "to": ["pathFromPrimary"] },
+    { "keys": ["fuentes", "citas", "referencias"], "to": ["collectReferences", "SourcesTab", "pubmedUrl"] },
+    { "keys": ["estado visual", "reach", "opacidad"], "to": ["reachFromStatus", "visualState", "LAYER_OPACITY"] },
+    { "keys": ["ficha", "detalle nodo"], "to": ["DetailCard"] },
+    { "keys": ["lista de capas", "rail"], "to": ["LayerList"] },
+    { "keys": ["subcapas", "grafo por subcapas", "cascada"], "to": ["LayerCascade"] },
+    { "keys": ["silueta", "muñeco", "cuerpo"], "to": ["BodySilhouette", "HOTSPOTS", "TAGS"] },
+    { "keys": ["escenario", "severidad"], "to": ["ScenarioSelector"] },
+    { "keys": ["vitales", "labs"], "to": ["VitalsBar"] },
+    { "keys": ["import", "cargar json", "dataset"], "to": ["ImportControl", "validateDataset"] },
+    { "keys": ["app", "raiz", "entrada"], "to": ["App"] }
+  ],
+  "pathBoosts": [
+    { "path": "src/engine/propagation.js", "boost": 2 },
+    { "path": "src/App.jsx", "boost": 1 }
+  ],
+  "methodReminder": [
+    "HumanFlow (Rev4): el motor vive en src/engine/propagation.js (buildGraph -> topoSort -> propagate -> pathFromPrimary). No dupliques logica de propagacion en componentes React.",
+    "Dos vistas fusionadas lado a lado (spec Rev4 §9): src/body/BodySilhouette.jsx (muñeco) y src/layers/LayerCascade.jsx (subcapas), sincronizadas via activeNodeId en App.jsx. src/layers/LayerList.jsx es la lista compartida.",
+    "src/detail/DetailCard.jsx es la ficha unica para las 3 vistas: incluye la cadena causal (pathFromPrimary) y las referencias del nodo. src/detail/SourcesTab.jsx agrega TODAS las citas del dataset (engine/citations.js collectReferences).",
+    "El dataset vive en src/data/vitamin-d.json (taxonomia anatomica 7 capas: sangre/organos/hueso/linfatico/piel/nervioso/sentidos) y se valida en data/ImportControl.jsx antes de entrar al motor.",
+    "Rev1 (src/graph/*) fue eliminado por completo — no existe, no lo busques ni lo recrees."
+  ],
+  "flowReminder": [
+    "dataset (src/data) -> engine/propagation.js -> App.jsx (estado: nodeStates/nodeReach/layerReach) -> body/BodySilhouette.jsx + layers/LayerCascade.jsx + layers/LayerList.jsx -> detail/DetailCard.jsx al seleccionar nodo -> detail/SourcesTab.jsx (global)"
+  ]
+}

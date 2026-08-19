@@ -5,132 +5,236 @@
     "sliderMin": 0,
     "sliderMax": 150,
     "sliderDefault": 30,
-    "unit": "ng/mL"
+    "unit": "ng/mL",
+    "severityScenarios": [
+      { "id": "normal", "label": "Normal", "primaryValue": 30 },
+      { "id": "moderada", "label": "Moderada", "primaryValue": 15, "range": "10–19 ng/mL" },
+      { "id": "severa", "label": "Severa", "primaryValue": 7, "range": "<10 ng/mL" }
+    ],
+    "vitalNodeIds": ["serum_d", "pth", "remodeling"]
   },
   "layers": [
-    { "id": 1, "name": "Input & Absorption" },
-    { "id": 2, "name": "Transport & Stabilization" },
-    { "id": 3, "name": "Activation & Regulation" },
-    { "id": 4, "name": "Tissue Utilization" },
-    { "id": 5, "name": "Homeostatic Regulation" },
-    { "id": 6, "name": "Systemic Remodeling" },
-    { "id": 7, "name": "Clinical Manifestations" }
+    { "id": 1, "name": "Sangre", "anatomyId": "sangre" },
+    { "id": 2, "name": "Órganos", "anatomyId": "organos" },
+    { "id": 3, "name": "Hueso", "anatomyId": "hueso" },
+    { "id": 4, "name": "Linfático", "anatomyId": "linfatico" },
+    { "id": 5, "name": "Piel", "anatomyId": "piel" },
+    { "id": 6, "name": "Nervioso", "anatomyId": "nervioso" },
+    { "id": 7, "name": "Sentidos", "anatomyId": "sentidos" }
   ],
   "nodes": [
     {
-      "id": "sun",
-      "name": "Sun Exposure",
+      "id": "serum_d",
+      "name": "25(OH)D sérico",
       "layer": 1,
-      "critical": false,
-      "thresholdMin": 10,
-      "thresholdMax": 150,
-      "lagHours": 0,
+      "critical": true,
       "isPrimary": true,
-      "description": "Síntesis cutánea de vitamina D3 por exposición a UVB. Fuente principal de entrada al sistema."
-    },
-    {
-      "id": "diet",
-      "name": "Diet",
-      "layer": 1,
-      "critical": false,
-      "thresholdMin": 10,
-      "thresholdMax": 150,
+      "thresholdMin": 20,
+      "thresholdMax": 100,
       "lagHours": 0,
-      "description": "Ingesta de vitamina D3/D2 vía alimentos y suplementos."
-    },
-    {
-      "id": "liver",
-      "name": "Liver (CYP2R1)",
-      "layer": 2,
-      "critical": true,
-      "thresholdMin": 20,
-      "thresholdMax": 100,
-      "lagHours": 12,
-      "description": "Hidroxila la vitamina D a 25(OH)D, la forma circulante que se mide clínicamente."
-    },
-    {
-      "id": "kidney",
-      "name": "Kidney (CYP27B1)",
-      "layer": 3,
-      "critical": true,
-      "thresholdMin": 20,
-      "thresholdMax": 100,
-      "lagHours": 6,
-      "description": "Convierte 25(OH)D a 1,25(OH)₂D (forma activa) mediante la enzima CYP27B1. Punto crítico de control."
-    },
-    {
-      "id": "bone",
-      "name": "Bone",
-      "layer": 4,
-      "critical": false,
-      "thresholdMin": 20,
-      "thresholdMax": 100,
-      "lagHours": 168,
-      "description": "Regula mineralización ósea y remodelado vía osteoblastos/osteoclastos."
-    },
-    {
-      "id": "immune",
-      "name": "Immune System",
-      "layer": 4,
-      "critical": true,
-      "thresholdMin": 20,
-      "thresholdMax": 100,
-      "lagHours": 72,
-      "description": "Modula respuesta inmune innata y adaptativa; deficiencia se asocia a mayor riesgo de infección."
-    },
-    {
-      "id": "muscle",
-      "name": "Muscle",
-      "layer": 4,
-      "critical": false,
-      "thresholdMin": 20,
-      "thresholdMax": 100,
-      "lagHours": 96,
-      "description": "Función contráctil y fuerza muscular, sensible a niveles bajos de D activa."
+      "description": "Aquí se mide la carencia. El 25(OH)D es la forma de almacén (vida media 2–3 semanas) y viaja unido a la proteína ligadora de vitamina D (DBP). Resume semanas de sol, dieta y recambio.",
+      "composition": "Plasma · proteína transportadora DBP",
+      "timeToAppear": "El nivel sérico resume semanas de sol, dieta y recambio — no hay retraso propio.",
+      "keyFacts": ["DBP (proteína ligadora)", "Vida media 2–3 semanas"],
+      "symptomsBySeverity": {
+        "moderada": ["25(OH)D 10–19 ng/mL", "Calcio sérico a menudo normal", "PTH ya elevada (hiperparatiroidismo secundario incipiente)"],
+        "severa": ["25(OH)D <10 ng/mL", "Calcio bajo o bajo-normal", "PTH muy alta · marcadores óseos en aumento"]
+      },
+      "references": [
+        { "pmid": "17634462", "title": "Holick MF. Vitamin D deficiency. N Engl J Med. 2007." },
+        { "pmid": "21199850", "title": "Rosen CJ. Vitamin D insufficiency. N Engl J Med. 2011." }
+      ]
     },
     {
       "id": "pth",
-      "name": "PTH Feedback",
-      "layer": 5,
+      "name": "PTH (hormona paratiroidea)",
+      "layer": 1,
       "critical": false,
       "thresholdMin": 15,
       "thresholdMax": 65,
       "lagHours": 24,
-      "description": "Hormona paratiroidea: sube quiere compensar el calcio bajo, activando reabsorción ósea."
+      "description": "Sube para compensar el calcio bajo, activando reabsorción ósea cuando el sustrato de vitamina D escasea.",
+      "composition": "Glándulas paratiroides",
+      "timeToAppear": "Se eleva en días una vez el calcio empieza a bajar.",
+      "keyFacts": ["Hiperparatiroidismo secundario"],
+      "symptomsBySeverity": {
+        "moderada": ["PTH ligeramente elevada, compensación aún eficaz"],
+        "severa": ["PTH muy elevada, compensación se agota"]
+      },
+      "references": []
+    },
+    {
+      "id": "liver",
+      "name": "Hígado (CYP2R1)",
+      "layer": 2,
+      "critical": true,
+      "thresholdMin": 18,
+      "thresholdMax": 100,
+      "lagHours": 24,
+      "description": "Hidroxila la vitamina D a 25(OH)D mediante la enzima CYP2R1 — el paso que produce la propia forma que se mide en sangre.",
+      "composition": "Hepatocitos · enzima CYP2R1",
+      "timeToAppear": "24–48 h para reflejar cambios de sustrato.",
+      "keyFacts": ["CYP2R1"],
+      "symptomsBySeverity": {
+        "moderada": ["Menos sustrato disponible, activación aún posible"],
+        "severa": ["Cuello de botella de sustrato para todo lo que sigue"]
+      },
+      "references": [
+        { "pmid": "24529992", "title": "Bikle DD. Vitamin D metabolism, mechanism of action, and clinical applications. Chem Biol. 2014." }
+      ]
+    },
+    {
+      "id": "kidney",
+      "name": "Riñón (CYP27B1)",
+      "layer": 2,
+      "critical": true,
+      "thresholdMin": 18,
+      "thresholdMax": 100,
+      "lagHours": 6,
+      "description": "Convierte 25(OH)D a 1,25(OH)₂D (forma activa) mediante la enzima CYP27B1. Punto crítico de control — de aquí depende hueso, inmune y músculo.",
+      "composition": "Túbulo renal proximal · enzima CYP27B1",
+      "timeToAppear": "Activación renal aún posible si PTH empuja; falla si hay insuficiencia renal de base.",
+      "keyFacts": ["CYP27B1 (paso limitante)"],
+      "symptomsBySeverity": {
+        "moderada": ["Activación renal aún posible (PTH ↑)"],
+        "severa": ["Eje órgano-hormona no sostiene el calcio; si hay daño renal, todo lo de abajo falla"]
+      },
+      "references": [
+        { "pmid": "30321335", "title": "Bouillon R et al. Skeletal and extraskeletal actions of vitamin D. Endocr Rev. 2019." }
+      ]
+    },
+    {
+      "id": "bone",
+      "name": "Hueso",
+      "layer": 3,
+      "critical": true,
+      "thresholdMin": 18,
+      "thresholdMax": 100,
+      "lagHours": 168,
+      "description": "Capa clásica y mejor demostrada. Sin 1,25(OH)₂D el intestino no trae calcio, la PTH crónica resorbe hueso y el músculo pierde fuerza.",
+      "composition": "Osteoblastos, osteoclastos, músculo esquelético",
+      "timeToAppear": "Dolor y debilidad: semanas. Densidad ósea visible: 8–12 semanas.",
+      "keyFacts": ["VDR óseo", "PTH", "ALP"],
+      "symptomsBySeverity": {
+        "moderada": ["Dolor óseo vago · fatiga muscular", "Osteopenia · riesgo de caídas"],
+        "severa": ["Osteomalacia · fracturas por fragilidad", "Debilidad proximal (cuesta levantarse)"]
+      },
+      "references": [
+        { "pmid": "17634462", "title": "Holick MF. Vitamin D deficiency. N Engl J Med. 2007." },
+        { "pmid": "15082703", "title": "Bischoff-Ferrari HA et al. Effect of vitamin D on falls. JAMA. 2004." }
+      ]
     },
     {
       "id": "remodeling",
-      "name": "Bone Remodeling Markers",
-      "layer": 6,
+      "name": "Marcadores de recambio óseo",
+      "layer": 3,
       "critical": false,
-      "thresholdMin": 20,
+      "thresholdMin": 18,
       "thresholdMax": 100,
       "lagHours": 720,
-      "description": "Marcadores de recambio óseo (ALP, osteocalcina, cross-laps) — cambios estructurales a largo plazo."
+      "description": "ALP, osteocalcina y cross-laps reflejan el remodelado óseo acelerado que sigue a la carencia sostenida — cambio estructural, no agudo.",
+      "composition": "Fosfatasa alcalina (ALP) · marcadores de recambio",
+      "timeToAppear": "Semanas a meses (720h) para reflejarse en analítica.",
+      "keyFacts": ["ALP normal o levemente alta en carencia moderada"],
+      "symptomsBySeverity": {
+        "moderada": ["ALP normal o levemente alta"],
+        "severa": ["ALP alta · dolor óseo intenso"]
+      },
+      "references": []
     },
     {
-      "id": "symptoms",
-      "name": "Clinical Symptoms",
-      "layer": 7,
+      "id": "immune",
+      "name": "Sistema inmune / linfático",
+      "layer": 4,
       "critical": true,
-      "thresholdMin": 20,
+      "thresholdMin": 18,
       "thresholdMax": 100,
-      "lagHours": 336,
-      "description": "Fatiga, dolor óseo, infecciones frecuentes, debilidad muscular — lo que el paciente reporta."
+      "lagHours": 72,
+      "description": "Casi todas las células inmunes expresan VDR y pueden activar 25(OH)D in situ (CYP27B1). Calcitriol empuja tolerancia (IL-10) y frena Th17.",
+      "composition": "Macrófagos, células T y B, dendríticas, ganglios",
+      "timeToAppear": "2–4 semanas en infecciones de repetición.",
+      "keyFacts": ["VDR inmune", "CYP27B1", "catelicidina"],
+      "symptomsBySeverity": {
+        "moderada": ["Más resfriados e infecciones de vías altas", "Respuesta innata menos eficaz"],
+        "severa": ["Infecciones de repetición", "Menos péptidos antimicrobianos"]
+      },
+      "references": [
+        { "pmid": "28202713", "title": "Martineau AR et al. Vitamin D to prevent acute respiratory infections. BMJ. 2017." },
+        { "pmid": "20304061", "title": "Hewison M. Vitamin D and the immune system. 2010." }
+      ]
+    },
+    {
+      "id": "skin",
+      "name": "Piel",
+      "layer": 5,
+      "critical": true,
+      "thresholdMin": 10,
+      "thresholdMax": 100,
+      "lagHours": 1440,
+      "description": "La piel fabrica el precursor con UVB y, a la vez, es un órgano diana: el VDR controla diferenciación y proliferación. Los análogos de D se usan en psoriasis.",
+      "composition": "Queratinocitos · melanocitos · epidermis",
+      "timeToAppear": "Semanas a 3–6 meses.",
+      "keyFacts": ["7-DHC", "VDR cutáneo", "CYP27B1 local"],
+      "symptomsBySeverity": {
+        "moderada": ["Poco o ningún signo cutáneo claro", "Efecto más teórico que visible"],
+        "severa": ["Peor barrera · cicatrización lenta", "Brotes de psoriasis más posibles"]
+      },
+      "references": [
+        { "pmid": "15585788", "title": "Holick MF. Sunlight and vitamin D for bone health. Am J Clin Nutr. 2004." }
+      ]
+    },
+    {
+      "id": "muscle",
+      "name": "Nervioso / muscular",
+      "layer": 6,
+      "critical": true,
+      "thresholdMin": 10,
+      "thresholdMax": 100,
+      "lagHours": 96,
+      "description": "El cerebro expresa VDR y CYP27B1. Hay vías hacia neurotrofinas y, en modelos, serotonina. Parte de la debilidad es neuromuscular, no solo ósea.",
+      "composition": "Neuronas, astrocitos, hipocampo · músculo esquelético proximal",
+      "timeToAppear": "4–8 semanas en ánimo, fatiga y fuerza.",
+      "keyFacts": ["VDR neuronal", "CYP27B1 cerebral"],
+      "symptomsBySeverity": {
+        "moderada": ["Cansancio · niebla leve", "Ánimo más plano"],
+        "severa": ["Depresión · menor claridad mental", "Debilidad proximal neuromuscular"]
+      },
+      "references": [
+        { "pmid": "15778480", "title": "Eyles DW et al. Distribution of the vitamin D receptor in the human brain. 2005." },
+        { "pmid": "23042216", "title": "Annweiler C et al. Meta-analysis of memory and vitamin D. 2013." }
+      ]
+    },
+    {
+      "id": "senses",
+      "name": "Sentidos",
+      "layer": 7,
+      "critical": false,
+      "thresholdMin": 15,
+      "thresholdMax": 100,
+      "lagHours": 2880,
+      "description": "La retina y el epitelio pigmentario expresan VDR y las hidroxilasas. Estudios observacionales la asocian con degeneración macular y ojo seco. Capa más lejana y más débil.",
+      "composition": "Retina · epitelio pigmentario · oído interno (incierto)",
+      "timeToAppear": "Meses. Nada agudo.",
+      "keyFacts": ["VDR retiniano", "CYP27B1 ocular"],
+      "symptomsBySeverity": {
+        "moderada": ["Sin clínica sensorial atribuible", "La onda no llega de forma útil"],
+        "severa": ["VDR retiniano sin ligando suficiente", "Asociaciones con DMAE / ojo seco (evidencia débil)"]
+      },
+      "references": [
+        { "pmid": "25771356", "title": "Reins RY, McDermott AM. Vitamin D: implications for ocular disease. 2015." }
+      ]
     }
   ],
   "edges": [
-    { "from": "sun", "to": "liver", "relationship": "increases", "strength": 0.7, "modulation": { "type": "linear" } },
-    { "from": "diet", "to": "liver", "relationship": "increases", "strength": 0.3, "modulation": { "type": "linear" } },
+    { "from": "serum_d", "to": "pth", "relationship": "decreases", "strength": 0.7, "modulation": { "type": "linear" } },
+    { "from": "serum_d", "to": "liver", "relationship": "increases", "strength": 1, "modulation": { "type": "linear" } },
     { "from": "liver", "to": "kidney", "relationship": "activates", "strength": 0.9, "modulation": { "type": "linear" } },
     { "from": "kidney", "to": "bone", "relationship": "activates", "strength": 0.85, "modulation": { "type": "linear" } },
-    { "from": "kidney", "to": "immune", "relationship": "activates", "strength": 0.8, "modulation": { "type": "linear" } },
-    { "from": "kidney", "to": "muscle", "relationship": "activates", "strength": 0.6, "modulation": { "type": "linear" } },
-    { "from": "kidney", "to": "pth", "relationship": "decreases", "strength": 0.7, "modulation": { "type": "linear" } },
     { "from": "bone", "to": "remodeling", "relationship": "decreases", "strength": 0.75, "modulation": { "type": "linear" } },
     { "from": "pth", "to": "remodeling", "relationship": "increases", "strength": 0.5, "modulation": { "type": "linear" } },
-    { "from": "immune", "to": "symptoms", "relationship": "decreases", "strength": 0.6, "modulation": { "type": "linear" } },
-    { "from": "muscle", "to": "symptoms", "relationship": "decreases", "strength": 0.5, "modulation": { "type": "linear" } },
-    { "from": "remodeling", "to": "symptoms", "relationship": "decreases", "strength": 0.65, "modulation": { "type": "linear" } }
+    { "from": "kidney", "to": "immune", "relationship": "activates", "strength": 0.8, "modulation": { "type": "linear" } },
+    { "from": "serum_d", "to": "skin", "relationship": "increases", "strength": 0.5, "modulation": { "type": "linear" } },
+    { "from": "kidney", "to": "muscle", "relationship": "activates", "strength": 0.6, "modulation": { "type": "linear" } },
+    { "from": "serum_d", "to": "senses", "relationship": "increases", "strength": 0.25, "modulation": { "type": "linear" } }
   ]
 }
