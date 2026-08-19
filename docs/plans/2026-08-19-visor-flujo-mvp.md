@@ -1982,7 +1982,171 @@ instrucción del usuario), solo SSR con datos reales.
 
 ---
 
-## Producto Report — ¿solución real? (scorecard vs industria)
+## Rev16 — grafo: color por capa, tamaño por severidad, zonas por sector, superficie completa + tipografía fluida (okplan)
+
+**DIAGNÓSTICO**
+- síntoma: (a) el grafo colorea nodos **solo por estado** (on/soft/off)
+  — órganos y hueso son visualmente idénticos si están en el mismo
+  estado; (b) el tamaño de nodo solo depende de `critical`/`isPrimary`,
+  no de cuánto le pega realmente el efecto; (c) cada capa ocupa un
+  anillo completo de 360° — capas se mezclan angularmente, no hay
+  "zona" reconocible por capa; (d) el panel del grafo comparte columna
+  fija con las fichas incluso cuando el usuario está en la pestaña
+  Grafo, sin usar el ancho real disponible; (e) la tipografía salta
+  entre 3 tamaños fijos de `html{font-size}` (18/20/22px) — en
+  monitores/ventanas de ancho intermedio esto **estira mal** la
+  cuadrícula (`minmax(46rem,56rem)` cambia de 828px a 1012px solo por
+  el data-density, no por el ancho real de pantalla).
+- origen: `computeLayout()` y `draw()` en
+  `src/layers/NeuralGraph.jsx:40-70,398-556` — paleta fija por `state`
+  (`REACH_TO_STATE`), radio fijo por `critical`; `html{font-size}` en
+  `src/styles.css:47-62` — 3 valores discretos sin relación al ancho
+  real del viewport.
+- provoca: el grafo no comunica **tipo de capa** (solo intensidad),
+  el tamaño no comunica **dónde se concentra** el efecto (solo si el
+  nodo *podría* ser crítico), y la tipografía "salta" en vez de
+  adaptarse — confirmado, es el mismo mecanismo que `layout__views`
+  usa rem fijos (`46rem`/`56rem`) atados a un `font-size` que solo
+  tiene 3 valores posibles.
+- familia: **contract-drift visual** — el motor ya tiene toda la
+  info necesaria (`layer.anatomyId`, `nodeState.ratio`) pero el
+  render del grafo no la consume; + **layout rígido** en tipografía
+  (escalón fijo en vez de función continua del viewport).
+- remedio: (1) paleta de color por `anatomyId` (7 valores del catálogo
+  cerrado, no por dataset concreto — sigue siendo genérico), el
+  estado modula brillo/saturación, no el matiz; (2) radio de nodo
+  derivado de `|ratio - 1|` real (severidad), no solo de flags
+  estáticos; (3) `computeLayout` reparte cada capa en su propio
+  sector angular (no anillo completo) — capas no se mezclan; (4) grid
+  de `.layout__views` se reconfigura cuando la pestaña activa es
+  "Grafo" para que ocupe la fila completa; (5) `html{font-size}` pasa
+  de 3 valores fijos a una fórmula `clamp()` continua del ancho de
+  viewport (técnica real "fluid typography" / CSS locks, no
+  inventada) — el selector S/M/L pasa de fijar el tamaño a ser un
+  `±8%` sobre esa base fluida, no se elimina.
+
+**Tier:** M · **Modo:** graph-strict
+
+**Legitimidad**
+- `NeuralGraph.jsx` (`computeLayout`, `draw`): válido → absorber y
+  extender (mismo contrato `{layers, dataset, nodeReach, onSelectNode}`
+  + 1 prop nueva `nodeStates`, no rompe callers existentes fuera de
+  `App.jsx`).
+- `App.jsx` (render de `<NeuralGraph>`, `.layout__views`): válido →
+  absorber (añade prop + clase condicional, no reestructura).
+- `styles.css` tipografía (`html{font-size}`, `data-density`): mixto →
+  refactorizar — se queda el mecanismo de `data-density` (no se
+  elimina la feature), se corrige el valor base de fijo a fluido.
+- `DensitySelector.jsx`: válido → absorber sin cambios (sigue
+  disparando `data-density`, solo cambia qué hace ese atributo en CSS).
+
+**Touch graph (M)**
+
+| Nodo | path · Symbol | Rol |
+|---|---|---|
+| `src/layers/NeuralGraph.jsx` | `computeLayout` | añade sector angular por capa + radio por severidad (nuevo param `severityById`) |
+| `src/layers/NeuralGraph.jsx` | `draw` (nodos/aristas) | usa `layerColor(anatomyId, state)` en vez de paleta fija por estado |
+| `src/layers/NeuralGraph.jsx` | `NeuralGraph` (props) | nueva prop `nodeStates` |
+| `src/App.jsx` | render `<NeuralGraph>` | pasa `nodeStates` |
+| `src/App.jsx` | `.layout__views` | clase condicional `layout__views--grafo` cuando `layersView==='grafo'` |
+| `src/styles.css` | `html`, `html[data-density]` | fórmula `clamp()` fluida + `--density-scale` |
+| `src/styles.css` | `.layout__views` (≥1440px) | nueva regla `--grafo` que da la fila completa al panel de capas |
+
+| Edge | Desde → Hasta | Tipo | ¿Propagar? |
+|---|---|---|---|
+| e1 | `App.jsx` → `NeuralGraph` | prop nueva | sí — `nodeStates` ya se computa en `App.jsx:48`, solo se enhebra |
+| e2 | `App.jsx` → `.layout__views` (JSX) | clase condicional | sí — no afecta a `LayerCascade` (vista Capas), solo al contenedor |
+| e3 | `computeLayout` → `draw` | contrato de `positions` (ahora incluye zona/sector real) | sí — `draw` ya lee `pos.x/y/r` sin cambios de firma, no rompe |
+| e4 | `html{font-size}` → toda la hoja (rem) | base tipográfica | sí — es intencional que TODO lo que usa `rem` escale con la fórmula fluida, es el punto del cambio |
+
+NO TOCAR: `LayerCascade.jsx`/`LayerList.jsx` (vista "Capas", fuera de
+pedido — el usuario pidió mejoras al *grafo*), `engine/propagation.js`
+(ya expone `ratio` en `nodeStates`, no hace falta tocarlo),
+`DetailCard.jsx` (Rev15, sin relación).
+
+**Clasificación:** `computeLayout`/`draw` válido → extender · paleta
+fija por estado → deuda a resolver en este mismo punto (no se aplaza)
+· tipografía de 3 escalones → deuda a resolver en este mismo punto.
+
+**Impacto**
+- Si no propago `nodeStates` a `NeuralGraph`: el tamaño por severidad
+  queda a medias (usaría solo `critical`, no el remedio real).
+- Si no toco `.layout__views`: el punto 4 (superficie completa) no se
+  cumple aunque el grafo se vea mejor.
+- Superficie tocada: solo la vista "Grafo" + la tipografía global (que
+  toca visualmente TODO, es el efecto buscado, no un side-effect).
+
+**Cambios**
+1. `LAYER_HUE` — tabla fija de 7 matices por `anatomyId` (catálogo
+   cerrado, spec DATASET_PROMPT §3.3): sangre=rojo, órganos=ámbar,
+   hueso=hueso/dorado pálido, linfático=verde, piel=rosa, nervioso=
+   violeta, sentidos=cian. Helper `layerColor(anatomyId, state)` →
+   `{shell, aura, core}` vía HSL, saturación/luz moduladas por
+   `state` (on=brillante, soft=atenuado, off=gris, mismo matiz).
+2. `computeLayout(layers, nodes, severityById)`: cada capa recibe un
+   sector angular `2π/nLayers` (con margen entre sectores) en vez de
+   360° completo; dentro del sector, radio base = `BASE + banda*gap`
+   (2 bandas si la capa tiene >4 nodos, para no amontonar). Radio de
+   nodo = `baseR(critical) * (1 + severidad*0.6)`, `severidad =
+   min(1, |ratio-1|)`. Primarios siguen fijos al centro.
+3. `App.jsx`: `nodeStates` ya existe (`useMemo` línea 48) → se pasa
+   como prop nueva a `<NeuralGraph>`; `.layout__views` recibe
+   `className` condicional según `layersView`.
+4. CSS: `.layout__views--grafo` (dentro de `@media (min-width:1440px)`)
+   — `grid-template-columns: 1fr`, panel de capas ocupa la fila
+   completa a la altura disponible, fichas A/B pasan a una franja más
+   baja debajo (siguen accesibles, no se eliminan).
+5. CSS: `html{font-size}` pasa a
+   `calc(clamp(15px, 0.75vw + 13px, 21px) * var(--density-scale))`;
+   `data-density='s'` → `--density-scale:0.92`, `='l'` →
+   `--density-scale:1.08`, default `--density-scale:1`.
+
+**Industry:** N/A — patrón repo (tier M sin decisión de arquitectura
+externa); la técnica de tipografía fluida vía `clamp()` es un patrón
+CSS documentado y estándar (CSS Values and Units Module, soportado en
+todos los navegadores modernos), no una librería externa a evaluar.
+
+**VERIFY:** build limpio (45 módulos) · SSR de `NeuralGraph` con
+`vitamin-d.json` real (escenario "Severa", D=5) sin `NaN`/`undefined` ·
+`computeLayout` llamado directo con datos reales (export temporal solo
+para la prueba, revertido después):
+- **Sectores:** las 7 capas caen en rangos angulares propios y sin
+  solape (Sangre -0.96, Órganos -0.39→-0.06, Hueso 0.51→0.83,
+  Linfático 1.57, Piel 2.47, Nervioso -2.92, Sentidos -2.02).
+- **Radio por severidad:** nodos con `ratio=0.05` (muy afectados)
+  llegan a r=28-33.5, nodos con `ratio=0.95` (casi normales) se
+  quedan en r=14.4 — coincide exacto con `base*(1+severidad*0.6)`.
+
+**Status:** done — sin superficie humana en navegador (por instrucción
+del usuario), verificado con datos reales vía SSR + llamada directa a
+`computeLayout`.
+
+### Fix post-entrega — laterales vacíos en panel ancho
+
+El usuario reportó con captura de pantalla: al ocupar toda la fila
+(Punto 4), el CONTENIDO del grafo seguía encogido en el centro con
+aire vacío a los lados. Causa real: `computeLayout` reparte los nodos
+en un mundo ~cuadrado (sectores angulares); en un panel muy ancho el
+"fit al contenido" (Rev13) deja que la altura mande el escalado,
+sobrando ancho.
+
+Fix: `stretchToAspect(positions, panelAspect)` — nueva función en
+`NeuralGraph.jsx`, estira (no recorta) las posiciones para que su caja
+de contorno iguale el aspecto real del panel; el radio de cada nodo
+no se toca (nunca se deforma el círculo, solo se separan más). Se
+guarda el layout sin estirar en `stateRef.current.rawPositions` y se
+deriva `positions` (la que lee `draw`) dentro de `resize()`, que ya
+corre en mount + resize de ventana + cada vez que cambia el contenido
+— cubre tanto el caso inicial como el redimensionado en vivo.
+
+**VERIFY:** con el aspecto real del panel de la captura (~1850×560,
+ratio 3.30) el layout raw (ratio 0.84) pasa a 2.96 tras estirar — de
+un desajuste de 3.9× a quedar dentro de ~11% del objetivo (el 11%
+restante es el margen fijo de radio/etiqueta, que a propósito no se
+estira, si no las etiquetas de texto se verían desproporcionadas en
+paneles muy anchos). Confirmado numéricamente que el radio de cada
+nodo no cambia tras el estiramiento. Build limpio tras revertir los
+exports temporales usados solo para la prueba. — ¿solución real? (scorecard vs industria)
 
 **Detectado:** Human Flow architecture — visor de propagación biofísica:
 una variable primaria se propaga por un grafo de nodos agrupados en 7

@@ -32,6 +32,10 @@
 
   --shadow-border: 0 0 0 1px color-mix(in oklab, var(--color-fg) 10%, transparent);
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Rev16: el selector S/M/L deja de fijar un tamaño — pasa a ser un
+     ±8% sobre la base fluida de `html{font-size}` (ver abajo). */
+  --density-scale: 1;
 }
 
 * {
@@ -47,18 +51,26 @@ body,
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Rev5: selector de tamaño S/M/L (DensitySelector.jsx) — cambia la base
-     rem de la que cuelga toda la tipografía/espaciado de esta hoja, así
-     "todo" escala con un solo cambio, no solo el texto. */
-  font-size: 20px;
+  /* Rev5→Rev16: antes 3 tamaños fijos (18/20/22px) que "saltaban" al
+     cambiar densidad sin relación con el ancho real de pantalla — en
+     ventanas de ancho intermedio eso estiraba mal la cuadrícula
+     (`.layout__views` usa mínimos en rem). Ahora es tipografía FLUIDA:
+     una función continua del ancho de viewport vía clamp() — técnica
+     estándar ("fluid typography" / CSS locks, CSS Values and Units
+     Module), no una librería ni algo inventado. El selector S/M/L
+     (`--density-scale`) sigue existiendo pero como ajuste fino ±8%
+     sobre esa base, no como el único tamaño posible.
+     15px en viewports muy estrechos, 21px en monitores grandes,
+     interpolación continua entre medio. */
+  font-size: calc(clamp(15px, 0.75vw + 13px, 21px) * var(--density-scale));
 }
 
 html[data-density='s'] {
-  font-size: 18px;
+  --density-scale: 0.92;
 }
 
 html[data-density='l'] {
-  font-size: 22px;
+  --density-scale: 1.08;
 }
 
 body {
@@ -423,6 +435,28 @@ a {
   }
   .layout__rail {
     overflow-y: auto;
+  }
+
+  /* Rev16: pestaña "Grafo" activa — el panel de capas ocupa la fila
+     completa (toda la superficie disponible), las fichas A/B bajan a
+     una franja más corta debajo en vez de compartir columna fija. No
+     se eliminan, solo ceden espacio mientras se mira el grafo. */
+  .layout__views--grafo {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) 16rem;
+  }
+  .layout__views--grafo .layers-panel {
+    order: 1;
+  }
+  .layout__views--grafo .layout__panels {
+    order: 2;
+    flex-direction: row;
+    align-items: stretch;
+  }
+  .layout__views--grafo .layout__panel {
+    flex: 1;
+    min-width: 20rem;
+    min-height: 0;
   }
 }
 

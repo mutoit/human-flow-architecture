@@ -128,7 +128,7 @@ export default function App() {
             <LayerList layers={dataset.layers} activeLayerId={activeLayerId} layerReach={layerReach} onSelect={selectLayer} />
           </div>
 
-          <div className="layout__views">
+          <div className={`layout__views${layersView === 'grafo' ? ' layout__views--grafo' : ''}`}>
             <div className="layout__panels">
               <div className="layout__panel">
                 <p className="layout__panel-label">Resultado global — capa activa</p>
@@ -182,7 +182,13 @@ export default function App() {
               {layersView === 'capas' ? (
                 <LayerCascade layers={dataset.layers} dataset={dataset} nodeReach={nodeReach} onSelectNode={setCascadeNodeId} />
               ) : (
-                <NeuralGraph layers={dataset.layers} dataset={dataset} nodeReach={nodeReach} onSelectNode={setCascadeNodeId} />
+                <NeuralGraph
+                  layers={dataset.layers}
+                  dataset={dataset}
+                  nodeReach={nodeReach}
+                  nodeStates={nodeStates}
+                  onSelectNode={setCascadeNodeId}
+                />
               )}
             </div>
           </div>
