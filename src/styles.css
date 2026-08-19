@@ -119,8 +119,8 @@ a {
 
 .app {
   min-height: 100dvh;
-  max-width: 115rem;
-  margin: 0 auto;
+  /* Rev17: sin max-width — la app abraza todo el viewport (antes
+     quedaba comprimida y centrada: max-width 115rem + margin auto). */
   padding: 1rem 1rem 2rem;
 }
 
@@ -418,10 +418,12 @@ a {
     top: 1rem;
   }
   .layout__views {
-    /* Fichas A+B lado a lado dentro de la 1ª columna: cada una necesita
-       >= 20rem (320px, UXSKILL.md #2) — la columna entera >= ~42rem para
-       que ninguna baje de eso. Panel de capas absorbe todo lo demás. */
-    grid-template-columns: minmax(46rem, 56rem) minmax(32rem, 1fr);
+    /* Rev17: ambas columnas crecen con el viewport — antes la de fichas
+       estaba clavada a max 56rem y el layout se comprimía al centro en
+       monitores anchos. Se mantienen los mínimos de legibilidad
+       (UXSKILL.md #2): 46rem/32rem. La columna de fichas recibe más
+       peso (1.25fr) por llevar más contenido de texto. */
+    grid-template-columns: minmax(46rem, 1.25fr) minmax(32rem, 1fr);
   }
   .layout {
     /* La fila entera se estira al alto disponible (sin scroll de página). */
@@ -1044,6 +1046,8 @@ a {
   font-size: 0.875rem;
   line-height: 1.6;
   color: color-mix(in oklab, var(--color-fg) 90%, transparent);
+  /* Rev17: medida de lectura confortable aunque el panel llene el ancho. */
+  max-width: 70ch;
 }
 
 .detail-card__h3 {
@@ -1060,6 +1064,8 @@ a {
   line-height: 1.6;
   color: var(--color-muted);
   margin: 0 0 0.75rem;
+  /* Rev17: misma medida de lectura que .detail-card__lead. */
+  max-width: 70ch;
 }
 
 .detail-card__signs {
