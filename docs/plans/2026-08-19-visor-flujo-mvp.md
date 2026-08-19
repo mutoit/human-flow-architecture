@@ -1,11 +1,18 @@
 ---
-status: draft
+status: superseded
 source: direct
 tier: M
 mode: graph-strict
 legitimidad: nuevo — no aplica reuse (greenfield)
 date: 2026-08-19
 spec: docs/superpowers/specs/2026-08-19-visor-flujo-mvp-design.md
+superseded_note: >
+  El visual (grafo de capas apiladas) construido con este plan fue
+  descartado por el usuario a nivel de diseño ("no quiero nada de lo que
+  hiciste, a nivel visual, es horrible, se muere"). La spec fue actualizada
+  a Rev 2 (silueta + lista de capas + ficha de detalle). Este plan y su
+  código (src/graph/*) quedan obsoletos; un nuevo plan okplan debe crearse
+  para implementar Rev 2 antes de tocar código de nuevo.
 ---
 
 # Visor de Flujo Biofísico — MVP
