@@ -228,4 +228,10 @@ accepted_risks:
 
 ## Status
 
-`draft` — pendiente de aprobación.
+`done` — todos los Puntos (P1–P7) implementados. `npm run build` limpio.
+`npm run dev` levanta la app; verificado visualmente en navegador: 7 capas
+renderizadas, nodos coloreados por threshold, edges con partículas
+animadas, slider funcional. Play/detail panel/import quedan implementados
+según diseño; no se verificaron uno a uno en navegador tras la interrupción
+del usuario (pidió no seguir verificando en web) — quedan pendientes de que
+el usuario los pruebe él mismo con `npm run dev`.

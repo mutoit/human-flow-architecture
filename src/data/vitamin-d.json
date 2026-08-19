@@ -1,0 +1,136 @@
+{
+  "config": {
+    "name": "Vitamin D",
+    "primaryVariable": "25(OH)D",
+    "sliderMin": 0,
+    "sliderMax": 150,
+    "sliderDefault": 30,
+    "unit": "ng/mL"
+  },
+  "layers": [
+    { "id": 1, "name": "Input & Absorption" },
+    { "id": 2, "name": "Transport & Stabilization" },
+    { "id": 3, "name": "Activation & Regulation" },
+    { "id": 4, "name": "Tissue Utilization" },
+    { "id": 5, "name": "Homeostatic Regulation" },
+    { "id": 6, "name": "Systemic Remodeling" },
+    { "id": 7, "name": "Clinical Manifestations" }
+  ],
+  "nodes": [
+    {
+      "id": "sun",
+      "name": "Sun Exposure",
+      "layer": 1,
+      "critical": false,
+      "thresholdMin": 10,
+      "thresholdMax": 150,
+      "lagHours": 0,
+      "isPrimary": true,
+      "description": "Síntesis cutánea de vitamina D3 por exposición a UVB. Fuente principal de entrada al sistema."
+    },
+    {
+      "id": "diet",
+      "name": "Diet",
+      "layer": 1,
+      "critical": false,
+      "thresholdMin": 10,
+      "thresholdMax": 150,
+      "lagHours": 0,
+      "description": "Ingesta de vitamina D3/D2 vía alimentos y suplementos."
+    },
+    {
+      "id": "liver",
+      "name": "Liver (CYP2R1)",
+      "layer": 2,
+      "critical": true,
+      "thresholdMin": 20,
+      "thresholdMax": 100,
+      "lagHours": 12,
+      "description": "Hidroxila la vitamina D a 25(OH)D, la forma circulante que se mide clínicamente."
+    },
+    {
+      "id": "kidney",
+      "name": "Kidney (CYP27B1)",
+      "layer": 3,
+      "critical": true,
+      "thresholdMin": 20,
+      "thresholdMax": 100,
+      "lagHours": 6,
+      "description": "Convierte 25(OH)D a 1,25(OH)₂D (forma activa) mediante la enzima CYP27B1. Punto crítico de control."
+    },
+    {
+      "id": "bone",
+      "name": "Bone",
+      "layer": 4,
+      "critical": false,
+      "thresholdMin": 20,
+      "thresholdMax": 100,
+      "lagHours": 168,
+      "description": "Regula mineralización ósea y remodelado vía osteoblastos/osteoclastos."
+    },
+    {
+      "id": "immune",
+      "name": "Immune System",
+      "layer": 4,
+      "critical": true,
+      "thresholdMin": 20,
+      "thresholdMax": 100,
+      "lagHours": 72,
+      "description": "Modula respuesta inmune innata y adaptativa; deficiencia se asocia a mayor riesgo de infección."
+    },
+    {
+      "id": "muscle",
+      "name": "Muscle",
+      "layer": 4,
+      "critical": false,
+      "thresholdMin": 20,
+      "thresholdMax": 100,
+      "lagHours": 96,
+      "description": "Función contráctil y fuerza muscular, sensible a niveles bajos de D activa."
+    },
+    {
+      "id": "pth",
+      "name": "PTH Feedback",
+      "layer": 5,
+      "critical": false,
+      "thresholdMin": 15,
+      "thresholdMax": 65,
+      "lagHours": 24,
+      "description": "Hormona paratiroidea: sube quiere compensar el calcio bajo, activando reabsorción ósea."
+    },
+    {
+      "id": "remodeling",
+      "name": "Bone Remodeling Markers",
+      "layer": 6,
+      "critical": false,
+      "thresholdMin": 20,
+      "thresholdMax": 100,
+      "lagHours": 720,
+      "description": "Marcadores de recambio óseo (ALP, osteocalcina, cross-laps) — cambios estructurales a largo plazo."
+    },
+    {
+      "id": "symptoms",
+      "name": "Clinical Symptoms",
+      "layer": 7,
+      "critical": true,
+      "thresholdMin": 20,
+      "thresholdMax": 100,
+      "lagHours": 336,
+      "description": "Fatiga, dolor óseo, infecciones frecuentes, debilidad muscular — lo que el paciente reporta."
+    }
+  ],
+  "edges": [
+    { "from": "sun", "to": "liver", "relationship": "increases", "strength": 0.7, "modulation": { "type": "linear" } },
+    { "from": "diet", "to": "liver", "relationship": "increases", "strength": 0.3, "modulation": { "type": "linear" } },
+    { "from": "liver", "to": "kidney", "relationship": "activates", "strength": 0.9, "modulation": { "type": "linear" } },
+    { "from": "kidney", "to": "bone", "relationship": "activates", "strength": 0.85, "modulation": { "type": "linear" } },
+    { "from": "kidney", "to": "immune", "relationship": "activates", "strength": 0.8, "modulation": { "type": "linear" } },
+    { "from": "kidney", "to": "muscle", "relationship": "activates", "strength": 0.6, "modulation": { "type": "linear" } },
+    { "from": "kidney", "to": "pth", "relationship": "decreases", "strength": 0.7, "modulation": { "type": "linear" } },
+    { "from": "bone", "to": "remodeling", "relationship": "decreases", "strength": 0.75, "modulation": { "type": "linear" } },
+    { "from": "pth", "to": "remodeling", "relationship": "increases", "strength": 0.5, "modulation": { "type": "linear" } },
+    { "from": "immune", "to": "symptoms", "relationship": "decreases", "strength": 0.6, "modulation": { "type": "linear" } },
+    { "from": "muscle", "to": "symptoms", "relationship": "decreases", "strength": 0.5, "modulation": { "type": "linear" } },
+    { "from": "remodeling", "to": "symptoms", "relationship": "decreases", "strength": 0.65, "modulation": { "type": "linear" } }
+  ]
+}
