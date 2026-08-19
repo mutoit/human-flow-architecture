@@ -1579,43 +1579,27 @@ a {
   color: var(--color-warn);
 }
 
-.import-control__error {
-  color: var(--color-bad);
-  font-size: 0.6875rem;
-  max-width: 220px;
-  text-align: right;
-  margin: 0;
-}
-
-.import-control__warnings {
-  max-width: 260px;
-  max-height: 240px;
-  overflow-y: auto;
-  text-align: right;
-}
-
-.import-control__warnings-title {
-  color: var(--color-warn);
-  font-size: 0.6875rem;
-  margin: 0 0 0.25rem;
-}
-
-.import-control__warnings ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.import-control__warnings li {
-  color: var(--color-muted);
-  font-size: 0.625rem;
+/* Toast: fixed, fuera del flujo — no puede empujar ni romper el layout
+   pase lo que pase con el largo del texto. Se autodescarta a los 10s
+   (ImportControl) o al hacer click. */
+.import-toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 50;
+  max-width: 320px;
+  padding: 0.625rem 0.875rem;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-border), 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: 0.75rem;
   line-height: 1.4;
 }
 
-.import-control__warnings-where {
-  color: var(--color-subtle);
-  font-size: 0.5625rem;
+.import-toast--warning {
+  color: var(--color-warn);
+}
+
+.import-toast--error {
+  color: var(--color-bad);
 }

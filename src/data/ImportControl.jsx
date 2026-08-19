@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const FINDING_STATES = new Set(['normal', 'alert', 'critical'])
 const EVIDENCE_TIERS = new Set([
@@ -157,26 +157,55 @@ function groupWarnings(warnings) {
   return [...byReason.entries()].map(([reason, wheres]) => ({ reason, wheres }))
 }
 
+const TOAST_MS = 10000
+
+// Toast flotante: `position: fixed`, fuera del flujo normal — no puede
+// empujar ni aplastar el layout, pase lo que pase con el contenido.
+// Detalle completo (por nodo/edge) va a console.warn, nunca al DOM.
+function Toast({ toast, onDismiss }) {
+  useEffect(() => {
+    if (!toast) return undefined
+    const t = setTimeout(onDismiss, TOAST_MS)
+    return () => clearTimeout(t)
+  }, [toast, onDismiss])
+
+  if (!toast) return null
+  return (
+    <div className={`import-toast import-toast--${toast.kind}`} role="status">
+      {toast.text}
+    </div>
+  )
+}
+
 export default function ImportControl({ onImport }) {
   const inputRef = useRef(null)
-  const [error, setError] = useState(null)
-  const [warnings, setWarnings] = useState([])
+  const [toast, setToast] = useState(null)
 
   const handleFile = async (file) => {
-    setError(null)
-    setWarnings([])
+    setToast(null)
     try {
       const text = await file.text()
       const parsed = JSON.parse(text)
       const result = validateDataset(parsed)
       if (result.error) {
-        setError(result.error)
+        setToast({ kind: 'error', text: result.error })
         return
       }
-      if (result.warnings.length > 0) setWarnings(result.warnings)
+      if (result.warnings.length > 0) {
+        // eslint-disable-next-line no-console
+        console.warn(`[ImportControl] ${result.warnings.length} avisos al importar:`)
+        for (const { reason, wheres } of groupWarnings(result.warnings)) {
+          // eslint-disable-next-line no-console
+          console.warn(`${wheres.length}× ${reason}\n  ${wheres.join('\n  ')}`)
+        }
+        setToast({
+          kind: 'warning',
+          text: `Importado con ${result.warnings.length} aviso${result.warnings.length > 1 ? 's' : ''} — detalle en la consola.`,
+        })
+      }
       onImport(result.sanitized)
     } catch (err) {
-      setError(`No se pudo leer el JSON: ${err.message}`)
+      setToast({ kind: 'error', text: `No se pudo leer el JSON: ${err.message}` })
     } finally {
       if (inputRef.current) inputRef.current.value = ''
     }
@@ -197,24 +226,7 @@ export default function ImportControl({ onImport }) {
           if (file) handleFile(file)
         }}
       />
-      {error && <p className="import-control__error">{error}</p>}
-      {warnings.length > 0 && (
-        <div className="import-control__warnings">
-          <p className="import-control__warnings-title">
-            Importado con {warnings.length} aviso{warnings.length > 1 ? 's' : ''} (no bloquean, revísalos):
-          </p>
-          <ul>
-            {groupWarnings(warnings).map(({ reason, wheres }) => (
-              <li key={reason}>
-                {wheres.length > 1 ? `${wheres.length}× — ` : ''}
-                {reason}
-                <br />
-                <span className="import-control__warnings-where">{wheres.join(' · ')}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   )
 }
