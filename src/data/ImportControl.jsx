@@ -140,6 +140,23 @@ export function validateDataset(dataset) {
   }
 }
 
+// Agrupa avisos casi-idénticos (ej. el mismo evidenceTier inválido repetido
+// en 29 citas) en una línea por motivo, para no pintar un muro de texto que
+// reviente el layout del header. `where` no lleva ": " nunca (ver formato
+// en sanitizeCitation/citationError), así que el primer ": " separa limpio
+// "dónde" de "por qué".
+function groupWarnings(warnings) {
+  const byReason = new Map()
+  for (const w of warnings) {
+    const i = w.indexOf(': ')
+    const where = i === -1 ? w : w.slice(0, i)
+    const reason = i === -1 ? '' : w.slice(i + 2)
+    if (!byReason.has(reason)) byReason.set(reason, [])
+    byReason.get(reason).push(where)
+  }
+  return [...byReason.entries()].map(([reason, wheres]) => ({ reason, wheres }))
+}
+
 export default function ImportControl({ onImport }) {
   const inputRef = useRef(null)
   const [error, setError] = useState(null)
@@ -187,8 +204,13 @@ export default function ImportControl({ onImport }) {
             Importado con {warnings.length} aviso{warnings.length > 1 ? 's' : ''} (no bloquean, revísalos):
           </p>
           <ul>
-            {warnings.map((w, i) => (
-              <li key={i}>{w}</li>
+            {groupWarnings(warnings).map(({ reason, wheres }) => (
+              <li key={reason}>
+                {wheres.length > 1 ? `${wheres.length}× — ` : ''}
+                {reason}
+                <br />
+                <span className="import-control__warnings-where">{wheres.join(' · ')}</span>
+              </li>
             ))}
           </ul>
         </div>

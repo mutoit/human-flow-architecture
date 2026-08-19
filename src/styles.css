@@ -1589,6 +1589,8 @@ a {
 
 .import-control__warnings {
   max-width: 260px;
+  max-height: 240px;
+  overflow-y: auto;
   text-align: right;
 }
 
@@ -1611,4 +1613,9 @@ a {
   color: var(--color-muted);
   font-size: 0.625rem;
   line-height: 1.4;
+}
+
+.import-control__warnings-where {
+  color: var(--color-subtle);
+  font-size: 0.5625rem;
 }
