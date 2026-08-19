@@ -154,7 +154,7 @@ Cada finding:
 | `summary` | string | sí | Qué dice el estudio, en 1-2 frases, sin cifras inventadas |
 | `claimUsage` | string | no en import | Qué parte exacta del paper sustenta el summary (ej. "Tabla 3, grupo <6h"). Opcional al generar: no lo rellenes si no has leído el paper |
 | `citation` | objeto | recomendado | `{ "pmid": "12345678", "title": "Autor et al. Título. Revista. Año." }` o `{ "url": "https://...", "title": "..." }` |
-| `citation.evidenceTier` | string | no | `"meta-analysis"` \| `"rct"` \| `"cohort"` \| `"case-report"` \| `"expert-opinion"` — **solo ordena** la ficha, nunca desempata el estado |
+| `citation.evidenceTier` | string | no | `"meta-analysis"` \| `"systematic-review"` \| `"rct"` \| `"cohort"` \| `"case-report"` \| `"expert-opinion"` — **solo ordena** la ficha, nunca desempata el estado. Una revisión **narrativa/no sistemática** (un autor opinando sobre el tema, sin metodología de búsqueda explícita) no es `"systematic-review"` — usa `"expert-opinion"` o, si dudas, omite el campo |
 | `citation.supersededBy` | string | no | pmid/doi de otra cita del mismo dataset que reemplaza a esta |
 
 No pongas `verified` / `verifiedAt`: los rellena el pipeline de

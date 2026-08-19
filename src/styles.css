@@ -1586,3 +1586,29 @@ a {
   text-align: right;
   margin: 0;
 }
+
+.import-control__warnings {
+  max-width: 260px;
+  text-align: right;
+}
+
+.import-control__warnings-title {
+  color: var(--color-warn);
+  font-size: 0.6875rem;
+  margin: 0 0 0.25rem;
+}
+
+.import-control__warnings ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.import-control__warnings li {
+  color: var(--color-muted);
+  font-size: 0.625rem;
+  line-height: 1.4;
+}

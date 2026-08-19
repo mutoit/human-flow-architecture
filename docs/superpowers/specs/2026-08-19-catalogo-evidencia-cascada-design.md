@@ -93,7 +93,8 @@ hecho sobre los datos. La ficha de detalle sigue mostrando todos los
 findings en paralelo.
 
 Cada `citation` gana un campo opcional `evidenceTier` (`"meta-analysis"
-| "rct" | "cohort" | "case-report" | "expert-opinion"`), usado **solo
+| "systematic-review" | "rct" | "cohort" | "case-report" |
+"expert-opinion"`), usado **solo
 para ordenar la presentación** en la ficha (meta-análisis primero) —
 nunca para calcular o desempatar el estado del nodo.
 
