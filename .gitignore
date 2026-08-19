@@ -6,6 +6,10 @@ dist/
 # se excluye de git y del propio indexado para no meter ruido en mapRelated
 src/code-intel/
 
+# caché de mapas de contexto de code-intel (generada automáticamente,
+# regenerable desde el propio código fuente — no aporta nada versionada)
+.code-intel/cache/
+
 # Material de referencia/brainstorming, no forma parte de la app —
 # excluido del repo público (decisión explícita al publicar en GitHub).
 /GROK/
