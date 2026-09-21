@@ -141,8 +141,9 @@ certifica.
   queda sin datos y lo dice explícitamente, no rellena el hueco.
 - No decide "quién tiene razón" cuando los estudios se contradicen —
   muestra el desacuerdo tal cual.
-- No da consejo clínico (dosis, tratamiento, "qué hacer") — solo
-  transcribe mecanismo y evidencia.
+- No inventa consejo clínico. Si un paper afirma dosis, riesgo o
+  «qué hacer», la app lo muestra citado; el médico interpreta. Si el
+  estudio no lo dice, esa cifra no aparece.
 - El nivel de detalle (ej. diferenciar un músculo concreto de otro) está
   limitado por lo que la literatura realmente diferencia — la app no
   inventa granularidad que la ciencia no ofrece.
@@ -155,8 +156,10 @@ certifica.
   `docs/DATASET_PROMPT.md` sigue describiendo el modelo antiguo
   (umbrales, ratio, `strength` numérico) y hay que reescribirlo antes de
   generar datasets nuevos con este documento.
-- El diseño del catálogo/buscador de temas (UX de "cargar" desde
-  biblioteca) no está especificado todavía — solo acordado el objetivo.
+- El buscador de literatura (Europe PMC / PubMed) ya está en el visor:
+  lista papers + abstract + enlaces oficiales. Todavía no genera un
+  dataset de capas a partir de esos papers (eso sigue el hueco LLM +
+  revisión humana).
 - El formato de exportación de "procedencia + cómo se ha usado" no está
   definido.
 - La forma concreta de la futura integración con una API de LLM
