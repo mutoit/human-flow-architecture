@@ -30,6 +30,8 @@
 // sector angular — layout calculado, no coordenadas fijas.
 
 import { useEffect, useRef, useState } from 'react'
+import { DEFAULT_HUE, REACH_META, SPLIT_HUE, hueOfAnatomy } from '../engine/reachMeta.js'
+import ReachLegend from './ReachLegend.jsx'
 
 const W = 1000
 const H = 720
@@ -39,9 +41,9 @@ const MAX_RADIUS = 300
 const ZOOM_MIN = 0.6
 const ZOOM_MAX = 4
 
-const REACH_TO_STATE = { hit: 'on', faint: 'soft', spared: 'off', contradictorio: 'split' }
-const STATE_LABEL = { on: 'Activo', soft: 'Rozado', off: 'Apagado', split: 'Contradictorio' }
-const SPLIT_HUE = 280
+// Derivadas de la fuente única (engine/reachMeta.js) — no se redefinen aquí.
+const REACH_TO_STATE = Object.fromEntries(Object.entries(REACH_META).map(([k, m]) => [k, m.state]))
+const STATE_LABEL = Object.fromEntries(Object.values(REACH_META).map((m) => [m.state, m.label]))
 
 function drawStateOf(reachState) {
   return reachState === 'split' ? 'on' : reachState
@@ -54,21 +56,6 @@ function drawHueOf(reachState, hue) {
 function isHot(state) {
   return state === 'on' || state === 'split'
 }
-
-// Matiz por capa anatómica (catálogo cerrado de 7, no por dataset
-// concreto) — asociación visual convencional: sangre=rojo,
-// órganos=ámbar, hueso=dorado pálido, linfático/inmune=verde,
-// piel=rosa, nervioso=violeta, sentidos=cian.
-const LAYER_HUE = {
-  sangre: 6,
-  organos: 30,
-  hueso: 45,
-  linfatico: 150,
-  piel: 335,
-  nervioso: 265,
-  sentidos: 200,
-}
-const DEFAULT_HUE = 40
 
 function hsla(h, s, l, a) {
   return `hsla(${h}, ${s}%, ${l}%, ${a})`
@@ -129,17 +116,22 @@ function computeLayout(layers, nodes, severityById = {}) {
   return positions
 }
 
-/** Caja de contorno (con margen de etiqueta) de un mapa de posiciones. */
-function boundsOf(positions) {
+const LABEL_GAP = 24 // alto reservado para la etiqueta bajo el nodo
+
+/** Caja de contorno del contenido REAL: nodo (radio) + etiqueta (alto fijo
+ * debajo y ANCHO medido, centrada en el nodo). `labelWidths` = Map id → ancho
+ * en unidades de grafo; sin entrada = nodo sin etiqueta. */
+function contentBoundsOf(positions, labelWidths) {
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
   let maxY = -Infinity
-  for (const pos of positions.values()) {
-    minX = Math.min(minX, pos.x - pos.r)
-    maxX = Math.max(maxX, pos.x + pos.r)
+  for (const [id, pos] of positions) {
+    const half = Math.max(pos.r, (labelWidths.get(id) ?? 0) / 2)
+    minX = Math.min(minX, pos.x - half)
+    maxX = Math.max(maxX, pos.x + half)
     minY = Math.min(minY, pos.y - pos.r)
-    maxY = Math.max(maxY, pos.y + pos.r + 24)
+    maxY = Math.max(maxY, pos.y + pos.r + (labelWidths.has(id) ? LABEL_GAP : 0))
   }
   if (!Number.isFinite(minX)) return { minX: 0, minY: 0, maxX: W, maxY: H }
   return { minX, minY, maxX, maxY }
@@ -157,7 +149,7 @@ function stretchToAspect(positions, panelAspect) {
   if (!Number.isFinite(panelAspect) || panelAspect <= 0 || positions.size === 0) return positions
   // Aspecto por CENTROS (sin el margen de radio/etiqueta): el margen es
   // un tamaño fijo que no debe pesar en la proporción del estiramiento
-  // — si se usa la caja con margen (`boundsOf`), el margen fijo diluye
+  // — si se usa la caja con margen (`contentBoundsOf`), el margen fijo diluye
   // el estiramiento y el resultado final se queda corto del aspecto
   // real del panel (medido: 3.01 en vez de 3.30 objetivo).
   let minX = Infinity
@@ -204,6 +196,9 @@ function pointOnCurve(a, b, cx, cy, t) {
 
 export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, onSelectNode }) {
   const canvasRef = useRef(null)
+  const chipsRef = useRef(null)
+  const legendRef = useRef(null)
+  const fitBtnRef = useRef(null)
   const tooltipRef = useRef(null)
   const [selectedId, setSelectedId] = useState(null)
   const [focusLayerId, setFocusLayerId] = useState(null)
@@ -236,7 +231,7 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
     const nodeHue = new Map()
     for (const node of dataset.nodes) {
       const anatomy = layerById.get(node.layer)?.anatomyId
-      nodeHue.set(node.id, LAYER_HUE[anatomy] ?? DEFAULT_HUE)
+      nodeHue.set(node.id, hueOfAnatomy(anatomy))
     }
 
     const particles = []
@@ -263,57 +258,71 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
     let raf = 0
+    let disposed = false
     let time = 0
     const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    // Autofit real (Rev13): ajusta al CONTENIDO — el rectángulo que
-    // realmente ocupan los nodos (+ radio + espacio de etiqueta), no al
-    // lienzo abstracto 1000×720 completo (eso dejaba mucho margen vacío
-    // y el zoom apenas cambiaba nada al pulsar el botón — bug reportado).
-    // Deja un 8% de aire ("casi llega al límite", no pegado al borde).
-    function contentBounds() {
-      const positions = stateRef.current.positions
-      let minX = Infinity
-      let minY = Infinity
-      let maxX = -Infinity
-      let maxY = -Infinity
-      for (const pos of positions.values()) {
-        minX = Math.min(minX, pos.x - pos.r)
-        maxX = Math.max(maxX, pos.x + pos.r)
-        minY = Math.min(minY, pos.y - pos.r)
-        maxY = Math.max(maxY, pos.y + pos.r + 24) // etiqueta debajo del nodo
+    // Autofit real (Rev13/17): ajusta al CONTENIDO (nodos + etiquetas con su
+    // ancho medido) dentro del ÁREA LIBRE del lienzo — la que no tapan los
+    // chips de capa (arriba), el botón Autofit y la leyenda (abajo). Se
+    // mide del DOM, no hay márgenes mágicos: si la leyenda hace wrap y
+    // crece, el área libre encoge y el grafo se recentra solo.
+    const EDGE = 12 // aire mínimo (px CSS) contra el borde del panel
+    const FIT_FILL = 0.94 // el contenido ocupa el 94% del área libre
+
+    function labelWidths() {
+      const widths = new Map()
+      for (const node of dataset.nodes) {
+        if ((nodeReach[node.id] ?? 'spared') === 'spared') continue // 'off' no pinta etiqueta
+        ctx.font = `600 ${node.isPrimary ? 14 : 12}px "IBM Plex Sans", sans-serif`
+        widths.set(node.id, ctx.measureText(node.name).width)
       }
-      if (!Number.isFinite(minX)) return { minX: 0, minY: 0, maxX: W, maxY: H }
-      return { minX, minY, maxX, maxY }
+      return widths
+    }
+
+    /** Área libre en píxeles de canvas: { left, top, width, height }. */
+    function freeArea() {
+      const rect = canvas.getBoundingClientRect()
+      const k = canvas.width / (rect.width || 1)
+      const top = Math.max(
+        chipsRef.current ? chipsRef.current.getBoundingClientRect().bottom - rect.top : 0,
+        fitBtnRef.current ? fitBtnRef.current.getBoundingClientRect().bottom - rect.top : 0,
+      )
+      const bottom = legendRef.current ? rect.bottom - legendRef.current.getBoundingClientRect().top : 0
+      const y0 = Math.min(rect.height * 0.6, top + EDGE)
+      const y1 = Math.max(y0 + 1, rect.height - bottom - EDGE)
+      return { left: EDGE * k, top: y0 * k, width: Math.max(1, rect.width - EDGE * 2) * k, height: (y1 - y0) * k }
+    }
+
+    function contentBounds() {
+      return contentBoundsOf(stateRef.current.positions, labelWidths())
     }
 
     function fitScale() {
       const b = contentBounds()
+      const area = freeArea()
       const w = Math.max(1, b.maxX - b.minX)
       const h = Math.max(1, b.maxY - b.minY)
-      return Math.min(canvas.width / w, canvas.height / h) * 0.92
+      return Math.min(area.width / w, area.height / h) * FIT_FILL
     }
     function fitPan(scale) {
       const b = contentBounds()
+      const area = freeArea()
       const cx = (b.minX + b.maxX) / 2
       const cy = (b.minY + b.maxY) / 2
-      return { x: canvas.width / 2 - cx * scale, y: canvas.height / 2 - cy * scale }
+      return { x: area.left + area.width / 2 - cx * scale, y: area.top + area.height / 2 - cy * scale }
     }
 
     function resize() {
       const rect = canvas.getBoundingClientRect()
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      // El canvas rellena el panel real (ancho Y alto de su caja CSS,
-      // que ya es height:100% del panel) — antes se forzaba una altura
-      // fija por relación de aspecto, por eso no rellenaba (bug reportado).
+      // El canvas rellena el panel real (ancho Y alto de su caja CSS).
       canvas.width = Math.max(1, Math.floor(rect.width * dpr))
       canvas.height = Math.max(1, Math.floor(rect.height * dpr))
-      // Rev16 (fix): estira el layout (sin tocar el radio de los
-      // nodos) al aspecto real del panel — si no, en un panel muy
-      // ancho el contenido queda "encogido" en el centro con aire a
-      // los lados (la altura manda el fit-to-content).
-      const panelAspect = rect.width / (rect.height || 1)
-      stateRef.current.positions = stretchToAspect(stateRef.current.rawPositions, panelAspect)
+      // Estira el layout (sin tocar el radio de los nodos) al aspecto del
+      // ÁREA LIBRE, no del panel entero, para llenar ambos ejes.
+      const area = freeArea()
+      stateRef.current.positions = stretchToAspect(stateRef.current.rawPositions, area.width / area.height)
       if (!stateRef.current.interacted) {
         const s = fitScale()
         const p = fitPan(s)
@@ -724,7 +733,15 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
 
     resize()
     canvas.style.cursor = 'grab'
-    window.addEventListener('resize', resize)
+    // El panel cambia de tamaño por el layout (columnas, pestañas, leyenda
+    // con wrap), no solo por la ventana: se observa el propio lienzo.
+    const observer = new ResizeObserver(resize)
+    observer.observe(canvas)
+    if (legendRef.current) observer.observe(legendRef.current)
+    // Las fuentes web cambian el ancho de las etiquetas al cargar.
+    document.fonts?.ready.then(() => {
+      if (!disposed) resize()
+    })
     canvas.addEventListener('wheel', onWheel, { passive: false })
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('pointermove', onPointerMove)
@@ -734,7 +751,8 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
 
     return () => {
       cancelAnimationFrame(raf)
-      window.removeEventListener('resize', resize)
+      disposed = true
+      observer.disconnect()
       canvas.removeEventListener('wheel', onWheel)
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
@@ -745,7 +763,7 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
 
   return (
     <div className="neural-graph">
-      <div className="neural-graph__layers" role="tablist" aria-label="Filtrar por capa">
+      <div ref={chipsRef} className="neural-graph__layers" role="tablist" aria-label="Filtrar por capa">
         <button
           type="button"
           className={`neural-graph__layer-chip${!focusLayerId ? ' neural-graph__layer-chip--active' : ''}`}
@@ -762,6 +780,11 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
               className={`neural-graph__layer-chip${focusLayerId === layer.id ? ' neural-graph__layer-chip--active' : ''}`}
               onClick={() => setFocusLayerId(focusLayerId === layer.id ? null : layer.id)}
             >
+              <i
+                className="neural-graph__layer-dot"
+                style={{ background: `hsl(${hueOfAnatomy(layer.anatomyId)} 70% 60%)` }}
+                aria-hidden="true"
+              />
               {layer.name}
             </button>
           ))}
@@ -769,23 +792,15 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
 
       <canvas ref={canvasRef} className="neural-graph__canvas" aria-label="Grafo neuronal del flujo" />
       <div ref={tooltipRef} className="neural-graph__tip" hidden />
-      <button type="button" className="neural-graph__autofit" onClick={() => stateRef.current.reset?.()}>
+      <button ref={fitBtnRef} type="button" className="neural-graph__autofit" onClick={() => stateRef.current.reset?.()}>
         Autofit
       </button>
 
-      <div className="neural-graph__legend">
-        <span>
-          <i className="neural-graph__pip neural-graph__pip--on" /> Activo
+      <div ref={legendRef} className="neural-graph__legend" aria-label="Cómo leer el grafo">
+        <span className="neural-graph__legend-hint">
+          <b>Color</b> = capa · <b>brillo y tamaño</b> = estado
         </span>
-        <span>
-          <i className="neural-graph__pip neural-graph__pip--soft" /> Rozado
-        </span>
-        <span>
-          <i className="neural-graph__pip neural-graph__pip--off" /> Apagado
-        </span>
-        <span>
-          <i className="neural-graph__pip neural-graph__pip--split" /> Contradictorio
-        </span>
+        <ReachLegend />
       </div>
     </div>
   )

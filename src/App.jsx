@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { propagate, pathFromPrimary } from './engine/propagation.js'
 import { reachFromState } from './engine/visualState.js'
+import { strongestReach } from './engine/reachMeta.js'
 import LayerList from './layers/LayerList.jsx'
 import LayerCascade from './layers/LayerCascade.jsx'
 import NeuralGraph from './layers/NeuralGraph.jsx'
@@ -10,6 +11,7 @@ import ScenarioSelector from './detail/ScenarioSelector.jsx'
 import DensitySelector from './detail/DensitySelector.jsx'
 import VitalsBar from './detail/VitalsBar.jsx'
 import FuentesMenu from './detail/FuentesMenu.jsx'
+import TopicSearch from './detail/TopicSearch.jsx'
 import ImportControl from './data/ImportControl.jsx'
 import defaultDataset from './data/vitamin-d.json'
 
@@ -19,17 +21,6 @@ function initialDensity() {
   if (typeof window === 'undefined') return 'm'
   const stored = window.localStorage.getItem(DENSITY_KEY)
   return stored === 's' || stored === 'm' || stored === 'l' ? stored : 'm'
-}
-
-const REACH_RANK = { spared: 0, faint: 1, contradictorio: 2, hit: 3 }
-
-function aggregateReach(nodeIds, nodeReach) {
-  let best = 'spared'
-  for (const id of nodeIds) {
-    const r = nodeReach[id] ?? 'spared'
-    if ((REACH_RANK[r] ?? 0) > (REACH_RANK[best] ?? 0)) best = r
-  }
-  return best
 }
 
 export default function App() {
@@ -60,7 +51,7 @@ export default function App() {
     const m = {}
     for (const layer of dataset.layers) {
       const ids = dataset.nodes.filter((n) => n.layer === layer.id).map((n) => n.id)
-      m[layer.id] = aggregateReach(ids, nodeReach)
+      m[layer.id] = strongestReach(ids.map((id) => nodeReach[id] ?? 'spared'))
     }
     return m
   }, [dataset, nodeReach])
@@ -103,6 +94,7 @@ export default function App() {
     <div className="app">
       <header className="app__header">
         <h1 className="app__title">Human Flow architecture</h1>
+        <TopicSearch />
         <div className="app__header-controls">
           <DensitySelector value={density} onChange={setDensity} />
           <FuentesMenu dataset={dataset} />

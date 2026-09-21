@@ -4,8 +4,7 @@
 import { useState } from 'react'
 import { pubmedUrl, evidenceTierRank } from '../engine/citations.js'
 import { IconExternalLink } from '../icons.jsx'
-
-const REACH_LABEL = { hit: 'Alcanzada', faint: 'Rozada', spared: 'No llega', contradictorio: 'Contradictorio' }
+import { labelOfReach } from '../engine/reachMeta.js'
 
 const RELATION_LABEL = {
   increases: { verb: 'aumenta', sign: 'pos' },
@@ -81,7 +80,7 @@ export default function DetailCard({ dataset, layer, node, nodeState, reach, cha
       <header className="detail-card__header">
         <div className="detail-card__top">
           <span className="detail-card__eyebrow">Capa {String(layer.id).padStart(2, '0')}</span>
-          <span className={`detail-card__badge detail-card__badge--${reach}`}>{REACH_LABEL[reach]}</span>
+          <span className={`detail-card__badge detail-card__badge--${reach}`}>{labelOfReach(reach)}</span>
         </div>
 
         <h2 className="detail-card__title">{node.name}</h2>
