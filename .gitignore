@@ -16,3 +16,6 @@ src/code-intel/
 /canvas.textme
 /UXSKILL.md
 /core.md
+
+# Skills de Claude Code (herramienta local, ~4.5MB de datos ajenos a la app)
+/.claude/skills/
