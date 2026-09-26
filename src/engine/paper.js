@@ -34,7 +34,7 @@ export function speciesOf(mesh) {
   return found.length ? found : ['no_indicada']
 }
 
-export function makePaper({ pmid = null, pmcid = null, doi = null, title, authors = '', journal = null, year = null, pubTypes = [], mesh = [], abstract = '' }) {
+export function makePaper({ pmid = null, pmcid = null, doi = null, title, authors = '', journal = null, year = null, pubTypes = [], mesh = [], sections = [] }) {
   const pmc = pmcid ? String(pmcid).replace(/^PMC/i, '') : null
   const cleanDoi = doi ? normalizeDoi(doi) : null
   return {
@@ -49,7 +49,8 @@ export function makePaper({ pmid = null, pmcid = null, doi = null, title, author
     mesh,
     design: designOf(pubTypes),
     species: speciesOf(mesh),
-    abstract,
+    sections,
+    abstract: sections.map((sec) => (sec.label ? `${sec.label}: ${sec.text}` : sec.text)).join(' '),
     links: {
       pubmed: pmid ? pubmedUrl(String(pmid)) : null,
       pmc: pmc ? pmcUrl(pmc) : null,
@@ -59,5 +60,3 @@ export function makePaper({ pmid = null, pmcid = null, doi = null, title, author
   }
 }
 
-/** Texto que lee el extractor y contra el que se comprueban las frases. */
-export const paperText = (p) => [p.title, p.abstract].filter(Boolean).join('\n')

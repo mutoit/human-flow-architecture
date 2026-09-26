@@ -1,103 +1,97 @@
-// Servicio extractor: recibe papers (id + título/abstract) y devuelve filas
-// del esquema fijo. La IA PROPONE; la app valida cada fila con un control
-// mecánico (src/pipeline/gate.js) antes de mostrarla. Enums y huecos salen
+// Servicio de Human Flow en Cloudflare: sirve la web (dist/) y la API.
+//   POST /api/extract   op = normalize | extract | verify | read_direction | log_dossier
+//   GET  /api/logs      registro de llamadas (Authorization: Bearer LOG_TOKEN)
+//   GET  /api/dossiers  dossiers guardados   (Authorization: Bearer LOG_TOKEN)
+// La IA SEÑALA (ids de frase y de número, fragmentos de la frase); la app
+// valida y construye los datos (src/pipeline/gate.js). Enums y huecos salen
 // del mismo archivo que usa la app (src/method/schema.json).
 
 import Anthropic from '@anthropic-ai/sdk'
 import schema from '../src/method/schema.json'
 
-const MODEL = 'claude-opus-5'
-const PROMPT_VERSION = '1'
+const PROMPT_VERSION = '2'
 const keys = (o) => Object.keys(o)
-
 const nullable = (s) => ({ anyOf: [s, { type: 'null' }] })
 const obj = (properties) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false })
+const describe = (o) => Object.entries(o).map(([k, v]) => `- ${k}: ${v}`).join('\n')
 
-function rowsSchema(layerIds, slots) {
-  const common = { paperId: { type: 'string' }, quote: { type: 'string' } }
+// Misma definición de dirección para la extracción y para la segunda lectura.
+const DIRECTION_RULES = `Dirección, siempre desde la EXPOSICIÓN frente al COMPARADOR (o frente a no tenerla / antes):
+- aumenta: el resultado es mayor con la exposición.
+- disminuye: el resultado es menor con la exposición.
+- sin_efecto: la frase dice que no hay diferencia.
+Ojo con las comparaciones invertidas: «X fue mayor en los controles que en los pacientes» significa que en los pacientes es MENOR.`
+
+function rowsSchema(slots) {
+  const base = { paperId: { type: 'string' }, sentence: { type: 'string' } }
   return obj({
     effects: {
       type: 'array',
       items: obj({
-        ...common,
-        target: { type: 'string' },
-        layer: { enum: [...layerIds, 'ninguna'] },
+        ...base,
+        exposure: { type: 'string' },
+        outcome: { type: 'string' },
+        comparator: nullable({ type: 'string' }),
+        direction: { enum: keys(schema.directions) },
+        claim: { enum: keys(schema.claims) },
         role: { enum: keys(schema.roles) },
-        predicate: { enum: keys(schema.predicates) },
-        level: { enum: schema.levels },
-        evidence_kind: { enum: keys(schema.evidenceKinds) },
       }),
     },
     measures: {
       type: 'array',
       items: obj({
-        ...common,
-        target: { type: 'string' },
-        layer: { enum: [...layerIds, 'ninguna'] },
+        ...base,
+        number: { type: 'string' },
+        outcome: { type: 'string' },
+        group: nullable({ type: 'string' }),
         slot: { enum: slots },
-        value: { type: 'number' },
-        unit: nullable({ type: 'string' }),
         metric: nullable({ enum: schema.effectSizeMetrics }),
-        timepoint: nullable({ type: 'string' }),
       }),
     },
     links: {
       type: 'array',
-      items: obj({
-        ...common,
-        from_target: { type: 'string' },
-        to_target: { type: 'string' },
-        from_layer: { enum: [...layerIds, 'ninguna'] },
-        to_layer: { enum: [...layerIds, 'ninguna'] },
-        predicate: { enum: keys(schema.linkPredicates) },
-      }),
+      items: obj({ ...base, from: { type: 'string' }, to: { type: 'string' }, verb: { enum: keys(schema.linkPredicates) } }),
     },
   })
 }
 
-const describe = (o) => Object.entries(o).map(([k, v]) => `- ${k}: ${v}`).join('\n')
+const EXTRACT_SYSTEM = `Eres un anotador de literatura biomédica. No escribes datos: SEÑALAS dónde están en el texto.
 
-const EXTRACT_SYSTEM = `Eres un extractor de datos de literatura biomédica. Rellenas un formulario fijo; no resumes ni opinas.
+Cada paper llega con sus frases numeradas (s1, s2…) y su sección, y con una lista NUMEROS (n1, n2…) ya leídos por el sistema.
 
-Reglas duras:
-1. "quote" es una frase COPIADA LITERALMENTE del texto del paper (misma ortografía). Si no puedes copiarla literal, no escribas la fila.
-2. "target" es la diana tal como aparece escrita en esa frase (p. ej. "serum LDL cholesterol"). Todas sus palabras deben estar en la quote.
-3. Solo lo que el texto afirma. Si el paper no lo dice, no hay fila. No completes con conocimiento propio.
-4. Cifras: "value" es un número que aparece tal cual en la quote; "unit" tal como aparece en la quote. Solo los huecos permitidos.
-5. Un eslabón (links) solo si UNA frase afirma que A cambia B.
-6. "layer": la capa del cuerpo de la diana; "ninguna" si no corresponde a ninguna.
-7. Nunca inventes paperId: usa el id que acompaña a cada texto.
+Reglas:
+1. "sentence" es el id de UNA frase (p. ej. "s4"). Solo frases de resultados o conclusiones.
+2. "exposure", "outcome", "comparator", "group", "from", "to" son fragmentos COPIADOS EXACTAMENTE de esa misma frase, lo más cortos posible (2–6 palabras). Si no puedes copiarlos exactos, no escribas la fila.
+3. "number" es un id de la lista NUMEROS que pertenezca a esa frase. Nunca escribas el valor.
+4. Efectos: la exposición es lo que produce o compara (normalmente el tema); el resultado es lo que cambia.
+5. Eslabón (links): solo si la frase afirma que A cambia B.
+6. "claim": asociacion si la frase habla de asociación o correlación; causal si afirma un efecto.
+7. Solo lo que el texto afirma. Nada de conocimiento propio.
 
-Rol del tema respecto a la diana:
-${describe(schema.roles)}
+${DIRECTION_RULES}
 
-Dirección del efecto:
-${describe(schema.predicates)}
+Rol del tema respecto al resultado:
+${describe(schema.roles)}`
 
-Verbos de eslabón:
-${describe(schema.linkPredicates)}
+const VERIFY_SYSTEM = `Lees UNA frase de un artículo científico y respondes una pregunta cerrada sobre ella. Solo cuenta lo que dice la frase.
 
-Tipo de evidencia:
-${describe(schema.evidenceKinds)}
-
-Nivel biológico: ${schema.levels.join(', ')}.`
+${DIRECTION_RULES}
+- indeterminado: la frase no permite saberlo.`
 
 const NORMALIZE_SYSTEM = `Conviertes el tema que escribe un usuario (en cualquier idioma) en una consulta de PubMed en inglés y clasificas el tipo de tema.
 - query_en: términos en inglés, preferentemente el término MeSH si existe; sin operadores inventados.
 - kind: uno de ${schema.kinds.join(', ')}.`
 
-const cors = (env) => ({
-  'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN ?? '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-})
+const verifyQuestion = (it) =>
+  `[${it.key}] Frase: «${it.sentence}»\nPregunta: según la frase, ¿«${it.outcome}» es mayor, menor o igual con «${it.exposure}» que ${it.comparator ? `con «${it.comparator}»` : 'sin ello / antes'}?`
 
-const json = (env, body, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...cors(env) } })
+// ---------- HTTP ----------
 
-async function structured(client, system, user, outSchema) {
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+
+async function structured(client, model, system, user, outSchema) {
   const response = await client.beta.messages.create({
-    model: MODEL,
+    model,
     max_tokens: 16000,
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
@@ -113,47 +107,112 @@ async function structured(client, system, user, outSchema) {
   return { data: JSON.parse(text), model: response.model }
 }
 
+async function logCall(env, entry) {
+  if (!env.DB) return
+  await env.DB.prepare(
+    'INSERT INTO calls (ts, run_id, op, model, prompt_version, ms, ok, request, response, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  )
+    .bind(new Date().toISOString(), entry.runId ?? null, entry.op, entry.model ?? null, PROMPT_VERSION, entry.ms, entry.ok ? 1 : 0, entry.request, entry.response ?? null, entry.error ?? null)
+    .run()
+}
+
+async function handleOp(body, env) {
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
+  const extractModel = env.EXTRACT_MODEL || 'claude-opus-5'
+  const verifyModel = env.VERIFY_MODEL || 'claude-opus-5'
+
+  switch (body.op) {
+    case 'normalize': {
+      const { data, model } = await structured(
+        client,
+        extractModel,
+        NORMALIZE_SYSTEM,
+        String(body.query ?? '').slice(0, 300),
+        obj({ query_en: { type: 'string' }, kind: { enum: schema.kinds } }),
+      )
+      return { ...data, model, promptVersion: PROMPT_VERSION }
+    }
+    case 'extract': {
+      const allSlots = Object.values(schema.slots).flat()
+      const slots = (body.slots ?? []).filter((s) => allSlots.includes(s))
+      const user = [
+        `Tema: ${body.topic}`,
+        `Tipo de tema: ${body.kind ?? 'desconocido'}`,
+        `Huecos de cifra permitidos: ${slots.join(', ') || 'ninguno'}`,
+        '',
+        ...(body.papers ?? []).slice(0, 5).map((p) => p.text),
+      ].join('\n')
+      const { data, model } = await structured(client, extractModel, EXTRACT_SYSTEM, user, rowsSchema(slots.length ? slots : ['n']))
+      return { rows: data, model, promptVersion: PROMPT_VERSION }
+    }
+    case 'verify':
+    case 'read_direction': {
+      // verify = segunda lectura ciega (producción). read_direction = misma
+      // pregunta con el modelo de extracción: solo para bench/evidence-inference.mjs.
+      const items = (body.items ?? []).slice(0, 60)
+      const { data, model } = await structured(
+        client,
+        body.op === 'verify' ? verifyModel : extractModel,
+        VERIFY_SYSTEM,
+        items.map(verifyQuestion).join('\n\n'),
+        obj({ answers: { type: 'array', items: obj({ key: { type: 'string' }, direction: { enum: schema.verifyAnswers } }) } }),
+      )
+      return { answers: data.answers, model, promptVersion: PROMPT_VERSION }
+    }
+    default:
+      throw Object.assign(new Error(`op desconocida: ${body.op}`), { status: 400 })
+  }
+}
+
+function authorized(request, env) {
+  return env.LOG_TOKEN && request.headers.get('Authorization') === `Bearer ${env.LOG_TOKEN}`
+}
+
+async function readLogs(request, env, table) {
+  if (!authorized(request, env)) return json({ error: 'No autorizado.' }, 401)
+  if (!env.DB) return json({ error: 'Sin base de datos de registro (D1).' }, 500)
+  const url = new URL(request.url)
+  const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 500)
+  const run = url.searchParams.get('run')
+  const q = run
+    ? env.DB.prepare(`SELECT * FROM ${table} WHERE run_id = ? ORDER BY id DESC LIMIT ?`).bind(run, limit)
+    : env.DB.prepare(`SELECT * FROM ${table} ORDER BY id DESC LIMIT ?`).bind(limit)
+  return json((await q.all()).results)
+}
+
 export default {
-  async fetch(request, env) {
-    if (request.method === 'OPTIONS') return new Response(null, { headers: cors(env) })
-    if (request.method !== 'POST') return json(env, { error: 'Solo POST.' }, 405)
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url)
+    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request)
+    if (request.method === 'GET' && url.pathname === '/api/logs') return readLogs(request, env, 'calls')
+    if (request.method === 'GET' && url.pathname === '/api/dossiers') return readLogs(request, env, 'dossiers')
+    if (request.method !== 'POST' || url.pathname !== '/api/extract') return json({ error: 'Ruta no válida.' }, 404)
 
     const body = await request.json().catch(() => null)
-    if (!body?.op) return json(env, { error: 'Falta op.' }, 400)
-    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY })
+    if (!body?.op) return json({ error: 'Falta op.' }, 400)
 
-    try {
-      if (body.op === 'normalize') {
-        const { data, model } = await structured(
-          client,
-          NORMALIZE_SYSTEM,
-          String(body.query ?? '').slice(0, 300),
-          obj({ query_en: { type: 'string' }, kind: { enum: schema.kinds } }),
+    if (body.op === 'log_dossier') {
+      if (env.DB && body.dossier) {
+        ctx.waitUntil(
+          env.DB.prepare('INSERT INTO dossiers (ts, run_id, input, json) VALUES (?, ?, ?, ?)')
+            .bind(new Date().toISOString(), body.runId ?? null, body.dossier.input ?? null, JSON.stringify(body.dossier))
+            .run(),
         )
-        return json(env, { ...data, model, promptVersion: PROMPT_VERSION })
       }
+      return json({ ok: true })
+    }
 
-      if (body.op === 'extract') {
-        const papers = (body.papers ?? []).slice(0, 5)
-        const layerIds = (body.layers ?? []).map((l) => l.id)
-        const slots = (body.slots ?? []).filter((s) => Object.values(schema.slots).flat().includes(s))
-        const user = [
-          `Tema: ${body.topic}`,
-          `Tipo de tema: ${body.kind ?? 'desconocido'}`,
-          `Capas: ${(body.layers ?? []).map((l) => `${l.id} (${l.name})`).join(', ')}`,
-          `Huecos de cifra permitidos: ${slots.join(', ') || 'ninguno'}`,
-          '',
-          ...papers.map((p) => `<paper id="${p.id}">\n${p.text}\n</paper>`),
-        ].join('\n')
-        const { data, model } = await structured(client, EXTRACT_SYSTEM, user, rowsSchema(layerIds, slots.length ? slots : ['n']))
-        return json(env, { rows: data, model, promptVersion: PROMPT_VERSION })
-      }
-
-      return json(env, { error: `op desconocida: ${body.op}` }, 400)
+    const started = Date.now()
+    const request_ = JSON.stringify(body)
+    try {
+      const result = await handleOp(body, env)
+      ctx.waitUntil(logCall(env, { runId: body.runId, op: body.op, model: result.model, ms: Date.now() - started, ok: true, request: request_, response: JSON.stringify(result) }))
+      return json(result)
     } catch (err) {
-      if (err instanceof Anthropic.RateLimitError) return json(env, { error: 'Límite de la IA alcanzado; reintenta en un momento.' }, 429)
-      if (err instanceof Anthropic.APIError) return json(env, { error: `Error de la IA (${err.status}).` }, 502)
-      return json(env, { error: err.message }, 500)
+      ctx.waitUntil(logCall(env, { runId: body.runId, op: body.op, ms: Date.now() - started, ok: false, request: request_, error: err.message }))
+      if (err instanceof Anthropic.RateLimitError) return json({ error: 'Límite de la IA alcanzado; reintenta en un momento.' }, 429)
+      if (err instanceof Anthropic.APIError) return json({ error: `Error de la IA (${err.status}).` }, 502)
+      return json({ error: err.message }, err.status ?? 500)
     }
   },
 }

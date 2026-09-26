@@ -36,14 +36,22 @@ confirmar a qué capa pertenece una diana).
 | 1. Mapa | Cuenta en PubMed los papers del tema en cada capa; % y observado/esperado | no | D-mapa, D-volumen |
 | 2. Selección | Por capa: 2 revisiones + 1 primario, en el orden de PubMed | no | D-seleccion |
 | 3. Lectura | Título, abstract, tipo de publicación y MeSH; diseño y especie salen de ahí | no | D-texto, D-metadatos |
-| 4. Extracción | La IA rellena el esquema fijo; el control mecánico acepta o rechaza cada fila | propone, no decide | D-extractor, D-esquema, D-rol, D-control |
+| 4. Extracción | La IA **señala** (ids de frase y número, fragmentos de la frase); el código construye cada dato y veta; una 2.ª lectura ciega confirma la dirección | señala, no escribe | D-extractor, D-esquema, D-rol, D-control, D-lectura-doble |
 | 5. PDF abierto | Enlace legal vía OpenAlex | no | D-fuente |
 
-Tipos de fila (`src/method/schema.json`):
+Antes de la IA, el código numera el texto (`src/pipeline/segment.js`):
+frases `s#` con su sección NLM y números `n#` con valor, unidad y tipo.
 
-- **Efecto**: tema → diana, con dirección, rol, nivel biológico y frase.
-- **Cifra**: un hueco cerrado según el tipo de tema, con valor y unidad de la frase.
+Tipos de fila (`src/method/schema.json`), todas señaladas, ninguna escrita:
+
+- **Efecto**: exposición → resultado frente a comparador; dirección, tipo
+  (causal / asociación) y rol.
+- **Cifra**: un número `n#` de la frase, su resultado y su grupo; hueco cerrado
+  según el tipo de tema.
 - **Eslabón**: A → B afirmado en una misma frase.
+
+Estado de cada fila: **aceptada** (se muestra), **en revisión** (las dos
+lecturas no coinciden; se lista aparte) o **rechazada** (motivo exportado).
 
 ## Qué se muestra
 
@@ -72,13 +80,12 @@ Tipos de fila (`src/method/schema.json`):
 | `src/detail/`, `src/layers/`, `src/search/` | interfaz |
 | `worker/` | servicio extractor (la clave de la IA vive aquí) |
 | `test/` | pruebas del núcleo (`npm test`) |
+| `bench/` | medición del método con datos anotados por médicos (`npm run bench:offline`, `bench:api`) |
 
 ## Puesta en marcha
 
-1. App: `npm install && npm run dev`. Sin extractor funciona la etapa 1 (mapa).
-2. Extractor: en `worker/`, `npm install`, `npx wrangler secret put ANTHROPIC_API_KEY`,
-   `npm run deploy`; fijar `ALLOWED_ORIGIN` en `worker/wrangler.toml` y arrancar
-   o construir la app con `VITE_EXTRACTOR_URL=<url del worker>`.
+`docs/DEPLOY.md`: web + API en un Worker de Cloudflare, registro en D1.
+Solo la web (`npm run dev`) funciona hasta la etapa 1 (mapa).
 
 ## Pendiente (no se da por hecho)
 
@@ -87,6 +94,8 @@ Tipos de fila (`src/method/schema.json`):
 - Normalizar dianas a MeSH/HPO para que los sinónimos unan cadenas (D-cadena).
 - Contraste automático con HPO y CTD (D-validacion).
 - Texto completo abierto de PMC (D-texto).
-- El control mecánico comprueba que cada dato está en su frase, no que el
-  hueco elegido sea el correcto (p. ej. una concentración marcada como
-  prevalencia); por eso la frase se muestra siempre al lado del dato.
+- Medir con la IA real la regla de doble lectura (`npm run bench:api`).
+- El control no comprueba que el hueco de una cifra sea el correcto (p. ej.
+  una concentración marcada como prevalencia) ni que la IA haya señalado el
+  resultado correcto dentro de una frase correcta; la frase se muestra
+  siempre con lo señalado resaltado.

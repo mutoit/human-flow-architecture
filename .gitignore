@@ -19,3 +19,11 @@ src/code-intel/
 
 # Skills de Claude Code (herramienta local, ~4.5MB de datos ajenos a la app)
 /.claude/skills/
+
+# Corpus de pruebas descargado (bench/data.mjs)
+bench/.data/
+# Local de wrangler
+.wrangler/
+worker/.wrangler/
+.dev.vars
+worker/.dev.vars

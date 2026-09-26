@@ -1,11 +1,12 @@
 // Recorrido (pipeline) del tema a través de las capas (decisión D-cadena).
 // Saltos posibles, todos con su frase:
-//   - efecto con rol «actua_sobre»: tema → diana
+//   - efecto causal con rol «actua_sobre»: tema → diana (una asociación no es un salto)
 //   - eslabón: A → B
 // Las cadenas se unen por diana normalizada; si mezclan papers se marcan
 // como ensambladas. Nunca se añade un salto que ninguna frase afirme.
 
 import { targetKey } from './text.js'
+import { accepted } from './aggregate.js'
 
 export const TOPIC_KEY = '__tema__'
 const MAX_DEPTH = 6
@@ -13,11 +14,11 @@ const MAX_DEPTH = 6
 /** Grafo de saltos citados. */
 export function hopsOf(dossier) {
   const hops = []
-  for (const e of dossier.rows.effects) {
-    if (e.role !== 'actua_sobre') continue
-    hops.push({ from: TOPIC_KEY, to: targetKey(e.target), toName: e.target, toLayer: e.layer, verb: e.predicate, row: e, kind: 'efecto' })
+  for (const e of accepted(dossier.rows.effects)) {
+    if (e.role !== 'actua_sobre' || e.claim !== 'causal') continue
+    hops.push({ from: TOPIC_KEY, to: targetKey(e.target), toName: e.target, toLayer: e.layer, verb: e.direction, row: e, kind: 'efecto' })
   }
-  for (const l of dossier.rows.links) {
+  for (const l of accepted(dossier.rows.links)) {
     hops.push({
       from: targetKey(l.from_target),
       fromName: l.from_target,
@@ -25,7 +26,7 @@ export function hopsOf(dossier) {
       to: targetKey(l.to_target),
       toName: l.to_target,
       toLayer: l.to_layer,
-      verb: l.predicate,
+      verb: l.verb,
       row: l,
       kind: 'eslabon',
     })

@@ -26,12 +26,35 @@ function PaperLinks({ paper }) {
   )
 }
 
-/** Una fila validada: frase literal + de qué paper sale. */
-export function RowEvidence({ row, paper, children }) {
+/** Frase con los fragmentos señalados resaltados (todos existen en ella). */
+function Highlighted({ text, marks }) {
+  const parts = []
+  let rest = text
+  const list = marks.filter(([frag]) => frag)
+  while (rest) {
+    let hit = null
+    for (const [frag, kind] of list) {
+      const i = rest.toLowerCase().indexOf(frag.toLowerCase())
+      if (i >= 0 && (!hit || i < hit.i)) hit = { i, frag: rest.slice(i, i + frag.length), kind }
+    }
+    if (!hit) {
+      parts.push(rest)
+      break
+    }
+    parts.push(rest.slice(0, hit.i), <mark key={parts.length} className={`evidence__mark evidence__mark--${hit.kind}`}>{hit.frag}</mark>)
+    rest = rest.slice(hit.i + hit.frag.length)
+  }
+  return parts
+}
+
+/** Una fila: frase literal (con lo señalado resaltado) + de qué paper sale. */
+export function RowEvidence({ row, paper, marks = [], children }) {
   return (
     <li className="evidence">
       {children ? <div className="evidence__top">{children}</div> : null}
-      <blockquote className="evidence__quote">«{row.quote}»</blockquote>
+      <blockquote className="evidence__quote">
+        «<Highlighted text={row.quote} marks={marks} />»
+      </blockquote>
       {paper ? (
         <p className="evidence__cite">
           <a href={paper.links.pubmed ?? paper.links.doi} target="_blank" rel="noopener noreferrer">

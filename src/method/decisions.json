@@ -1,15 +1,21 @@
 {
-  "version": "1",
+  "version": "2",
   "note": "Cada decisión de método que afecta a lo que se ve en pantalla. Se exporta con cada dossier. Si varias opciones tienen respaldo, se elige un punto medio y se dice cuál y por qué.",
   "decisions": [
     {
       "id": "D-principio",
       "tema": "Qué hace la app",
       "decision": "Transcribe lo que dicen los papers, capa por capa, con la frase exacta y su identificador. No emite puntuaciones clínicas, diagnósticos ni recomendaciones propias.",
-      "opciones": ["Visor de evidencia citada", "Asistente con puntuación o recomendación"],
+      "opciones": [
+        "Visor de evidencia citada",
+        "Asistente con puntuación o recomendación"
+      ],
       "porque": "Mostrar estudios revisables a un profesional con su base es la frontera que la FDA describe para software de apoyo a la decisión que no es dispositivo; una puntuación de riesgo o una directiva sí puede serlo.",
       "evidencia": [
-        { "label": "FDA — Clinical Decision Support Software, criterios 520(o)(1)(E)", "url": "https://www.fda.gov/medical-devices/digital-health-center-excellence/step-6-software-function-intended-provide-clinical-decision-support" }
+        {
+          "label": "FDA — Clinical Decision Support Software, criterios 520(o)(1)(E)",
+          "url": "https://www.fda.gov/medical-devices/digital-health-center-excellence/step-6-software-function-intended-provide-clinical-decision-support"
+        }
       ],
       "estado": "aplicada"
     },
@@ -17,12 +23,25 @@
       "id": "D-capas",
       "tema": "Qué capas del cuerpo se muestran",
       "decision": "13 capas: los 11 sistemas de órganos de la anatomía de referencia (tegumentario, esquelético, muscular, nervioso, endocrino, cardiovascular, linfático/inmune, respiratorio, digestivo, urinario, reproductor) más sangre y sentidos como capas propias.",
-      "opciones": ["7 capas de producto (anterior)", "13 capas (elegida)", "~23 ramas de HPO"],
+      "opciones": [
+        "7 capas de producto (anterior)",
+        "13 capas (elegida)",
+        "~23 ramas de HPO"
+      ],
       "porque": "Punto medio: 7 capas mezclaban sistemas distintos en 'órganos'; 23 ramas de HPO incluyen categorías no anatómicas (crecimiento, voz, constitucional). Sangre y sentidos se separan porque tanto MeSH (A15 hemático, A09 órganos de los sentidos) como HPO (sangre, ojo, oído) los tratan aparte. Músculo es capa propia (decisión del dueño, coincide con la anatomía de referencia).",
       "evidencia": [
-        { "label": "OpenStax Anatomy & Physiology 2e, 1.2 Structural Organization (11 sistemas)", "url": "https://openstax.org/books/anatomy-and-physiology-2e/pages/1-2-structural-organization-of-the-human-body" },
-        { "label": "MeSH, árbol A (Anatomía)", "url": "https://meshb.nlm.nih.gov/treeView" },
-        { "label": "Human Phenotype Ontology, rama Phenotypic abnormality HP:0000118", "url": "https://hpo.jax.org/" }
+        {
+          "label": "OpenStax Anatomy & Physiology 2e, 1.2 Structural Organization (11 sistemas)",
+          "url": "https://openstax.org/books/anatomy-and-physiology-2e/pages/1-2-structural-organization-of-the-human-body"
+        },
+        {
+          "label": "MeSH, árbol A (Anatomía)",
+          "url": "https://meshb.nlm.nih.gov/treeView"
+        },
+        {
+          "label": "Human Phenotype Ontology, rama Phenotypic abnormality HP:0000118",
+          "url": "https://hpo.jax.org/"
+        }
       ],
       "estado": "aplicada"
     },
@@ -30,11 +49,21 @@
       "id": "D-mapa",
       "tema": "Cómo se sabe en qué capas hay literatura sin que el paper nombre la capa",
       "decision": "Etapa 1 (sin IA): por cada capa, PubMed cuenta los papers indexados a la vez con el tema y con los descriptores MeSH del sistema (consulta visible en el dossier). Los términos que PubMed no reconoce se registran como aviso de la capa.",
-      "opciones": ["Leer 5 papers del tema y esperar que nombren capas", "Co-indexación MeSH por sistema (elegida)", "Buscar por palabras libres del cuerpo"],
+      "opciones": [
+        "Leer 5 papers del tema y esperar que nombren capas",
+        "Co-indexación MeSH por sistema (elegida)",
+        "Buscar por palabras libres del cuerpo"
+      ],
       "porque": "La indexación MeSH la hacen indexadores de la NLM con vocabulario controlado; la co-ocurrencia de términos MeSH en PubMed reproduce relaciones biológicas reales (red síntoma–enfermedad). Es reproducible y no depende del azar de 5 papers.",
       "evidencia": [
-        { "label": "Zhou et al. 2014, Human symptoms–disease network, Nat Commun 5:4212", "url": "https://www.nature.com/articles/ncomms5212" },
-        { "label": "NCBI E-utilities (esearch)", "url": "https://www.ncbi.nlm.nih.gov/books/NBK25499/" }
+        {
+          "label": "Zhou et al. 2014, Human symptoms–disease network, Nat Commun 5:4212",
+          "url": "https://www.nature.com/articles/ncomms5212"
+        },
+        {
+          "label": "NCBI E-utilities (esearch)",
+          "url": "https://www.ncbi.nlm.nih.gov/books/NBK25499/"
+        }
       ],
       "estado": "aplicada; descriptores MeSH por capa pendientes de verificar contra MeSH Browser en la primera ejecución real (la app registra los términos no reconocidos)"
     },
@@ -42,10 +71,17 @@
       "id": "D-volumen",
       "tema": "Cómo leer el conteo de una capa",
       "decision": "Se muestran tres cifras bibliométricas, nunca clínicas: nº de papers tema+capa, % sobre los papers del tema, y razón observado/esperado (el % del tema dividido por el % que esa capa tiene en todo PubMed). Ninguna pinta gravedad.",
-      "opciones": ["Solo conteo", "Conteo + % + observado/esperado (elegida)", "Pesos TF-IDF"],
+      "opciones": [
+        "Solo conteo",
+        "Conteo + % + observado/esperado (elegida)",
+        "Pesos TF-IDF"
+      ],
       "porque": "El conteo bruto premia los sistemas más estudiados (sesgo de popularidad). La razón observado/esperado es la corrección estándar de co-ocurrencia y se puede recalcular a mano con las cifras del dossier; TF-IDF es menos legible para un humano.",
       "evidencia": [
-        { "label": "Zhou et al. 2014 (ponderación de co-ocurrencias MeSH)", "url": "https://www.nature.com/articles/ncomms5212" }
+        {
+          "label": "Zhou et al. 2014 (ponderación de co-ocurrencias MeSH)",
+          "url": "https://www.nature.com/articles/ncomms5212"
+        }
       ],
       "estado": "aplicada"
     },
@@ -53,11 +89,21 @@
       "id": "D-seleccion",
       "tema": "Qué papers se leen",
       "decision": "Por cada capa con literatura: hasta 2 revisiones (systematic[sb] o review[pt]) y 1 estudio primario, en el orden de relevancia de PubMed (Best Match). Sin duplicados entre capas.",
-      "opciones": ["5 papers del tema en total (plan anterior)", "2 revisiones + 1 primario por capa (elegida)", "Todos los papers"],
+      "opciones": [
+        "5 papers del tema en total (plan anterior)",
+        "2 revisiones + 1 primario por capa (elegida)",
+        "Todos los papers"
+      ],
       "porque": "Punto medio entre coste y cobertura. Las cadenas mecánicas casi siempre están en revisiones (en el catálogo curado anterior, 6 de 10 flechas no tenían cita y las citadas venían de revisiones); los primarios aportan cifras medidas. El orden es el de la fuente y se etiqueta así: relevancia no es calidad.",
       "evidencia": [
-        { "label": "Cochrane Handbook cap. 4 (búsqueda) y cap. 5 (extracción)", "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-05" },
-        { "label": "PubMed Best Match", "url": "https://pubmed.ncbi.nlm.nih.gov/help/#best-match-algorithm" }
+        {
+          "label": "Cochrane Handbook cap. 4 (búsqueda) y cap. 5 (extracción)",
+          "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-05"
+        },
+        {
+          "label": "PubMed Best Match",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/help/#best-match-algorithm"
+        }
       ],
       "estado": "aplicada"
     },
@@ -65,22 +111,38 @@
       "id": "D-texto",
       "tema": "Qué texto se lee",
       "decision": "Título + abstract de PubMed. Nada de fuentes no legales. Texto completo abierto (PMC) queda como mejora posterior.",
-      "opciones": ["Solo abstract (elegida)", "Abstract + texto completo OA", "Cualquier PDF"],
+      "opciones": [
+        "Solo abstract (elegida)",
+        "Abstract + texto completo OA",
+        "Cualquier PDF"
+      ],
       "porque": "El abstract está disponible para casi todos los registros con la misma API y licencia; el texto completo solo existe para la parte abierta. Lo que el abstract no dice queda vacío, no se rellena.",
       "evidencia": [
-        { "label": "NCBI E-utilities (efetch)", "url": "https://www.ncbi.nlm.nih.gov/books/NBK25499/" }
+        {
+          "label": "NCBI E-utilities (efetch)",
+          "url": "https://www.ncbi.nlm.nih.gov/books/NBK25499/"
+        }
       ],
       "estado": "aplicada"
     },
     {
       "id": "D-metadatos",
       "tema": "Diseño del estudio y especie",
-      "decision": "El diseño sale del tipo de publicación de PubMed y la especie de las etiquetas MeSH Humans / Animals / In Vitro Techniques. No los decide la IA.",
-      "opciones": ["Los propone la IA", "Metadatos de PubMed (elegida)"],
+      "decision": "El diseño sale del tipo de publicación de PubMed y la especie de las etiquetas MeSH Humans / Animals / In Vitro Techniques; la sección de cada frase, de la categoría NLM del abstract. No los decide la IA.",
+      "opciones": [
+        "Los propone la IA",
+        "Metadatos de PubMed (elegida)"
+      ],
       "porque": "Los modelos llegan a inventar el diseño ('ensayo aleatorizado' sin aleatorización). Los metadatos de indexación son verificables. La especie importa porque un efecto en animales no es evidencia directa en humanos (GRADE, indirectness).",
       "evidencia": [
-        { "label": "Extracción de cifras de ensayos con LLM (PMC12448672)", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12448672/" },
-        { "label": "GRADE Handbook, indirectness", "url": "https://gdt.gradepro.org/app/handbook/handbook.html" }
+        {
+          "label": "Extracción de cifras de ensayos con LLM (PMC12448672)",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12448672/"
+        },
+        {
+          "label": "GRADE Handbook, indirectness",
+          "url": "https://gdt.gradepro.org/app/handbook/handbook.html"
+        }
       ],
       "estado": "aplicada"
     },
@@ -88,24 +150,47 @@
       "id": "D-extractor",
       "tema": "Quién lee los papers y dónde corre",
       "decision": "Un modelo de IA (Claude) rellena el esquema fijo desde un servicio propio (Worker); la clave nunca va al navegador. Sin servicio configurado, la app muestra solo la etapa 1 y lo dice.",
-      "opciones": ["IA en servicio propio (elegida)", "Clave del usuario en el navegador", "Sin IA"],
+      "opciones": [
+        "IA en servicio propio (elegida)",
+        "Clave del usuario en el navegador",
+        "Sin IA"
+      ],
       "porque": "Una clave en el navegador queda expuesta a cualquiera que abra la página. El formulario fijo antes de leer es la práctica de extracción de datos de Cochrane.",
       "evidencia": [
-        { "label": "OWASP — Secrets Management Cheat Sheet", "url": "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html" },
-        { "label": "Cochrane Handbook cap. 5", "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-05" }
+        {
+          "label": "OWASP — Secrets Management Cheat Sheet",
+          "url": "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
+        },
+        {
+          "label": "Cochrane Handbook cap. 5",
+          "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-05"
+        }
       ],
       "estado": "aplicada"
     },
     {
       "id": "D-esquema",
-      "tema": "Qué se extrae",
-      "decision": "Tres tipos de fila. Efecto: tema → diana, con dirección, rol, nivel biológico y frase. Cifra: solo huecos cerrados por tipo de tema. Eslabón: A → B dentro de una misma frase. Lo que no está en el esquema no se extrae.",
-      "opciones": ["Volcar todo lo que diga el paper", "Esquema fijo de tres filas (elegida)"],
-      "porque": "Sujeto–predicado–objeto con cita es la unidad de las bases curadas (CTD, SemMedDB); los eslabones por nivel biológico son la unidad de las rutas AOP de la OCDE.",
+      "tema": "Qué se extrae y cómo se pide",
+      "decision": "La IA no escribe datos: señala. Frases por id (s#) con su sección, números por id (n#) leídos por código, y fragmentos que deben estar escritos en esa misma frase (exposición, resultado, comparador, grupo). Tres filas: efecto (exposición → resultado frente a comparador, con dirección, tipo causal/asociación y rol), cifra (número señalado + grupo) y eslabón (A → B en una frase). El código construye cada dato desde el texto.",
+      "opciones": [
+        "Texto libre comprobado después (v1)",
+        "Señalamiento por ids y fragmentos anclados (elegida)",
+        "Índices de palabra"
+      ],
+      "porque": "Con texto libre, el control solo puede revisar la superficie. Señalando, un dato inventado no se puede ni expresar. Los fragmentos se anclan a una frase concreta en vez de contarse por índice: un índice mal contado desplazaría el dato sin que se note; un fragmento que no está se rechaza. El marco exposición/comparador/resultado es el de la tarea Evidence Inference, anotada por médicos.",
       "evidencia": [
-        { "label": "CTD — curación manual con PMID por interacción", "url": "https://academic.oup.com/nar/article/53/D1/D1328/7816860" },
-        { "label": "SemRep / SemMedDB — predicados cerrados", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7222583/" },
-        { "label": "OECD Adverse Outcome Pathways", "url": "https://www.oecd.org/en/topics/sub-issues/testing-of-chemicals/adverse-outcome-pathways.html" }
+        {
+          "label": "Evidence Inference 2.0 (DeYoung et al. 2020)",
+          "url": "https://arxiv.org/abs/2005.04177"
+        },
+        {
+          "label": "CTD — curación con PMID por interacción",
+          "url": "https://academic.oup.com/nar/article/53/D1/D1328/7816860"
+        },
+        {
+          "label": "OECD Adverse Outcome Pathways",
+          "url": "https://www.oecd.org/en/topics/sub-issues/testing-of-chemicals/adverse-outcome-pathways.html"
+        }
       ],
       "estado": "aplicada"
     },
@@ -113,7 +198,10 @@
       "id": "D-rol",
       "tema": "Papel del tema en cada diana",
       "decision": "Cada efecto lleva rol: actúa sobre, alterado por, origen o marcador.",
-      "opciones": ["Sin rol", "Con rol (elegida)"],
+      "opciones": [
+        "Sin rol",
+        "Con rol (elegida)"
+      ],
       "porque": "Sin rol, 'vitamina D + piel' se leería como efecto cuando la piel es donde se sintetiza; y un marcador medido en sangre no es un efecto sobre la sangre.",
       "evidencia": [],
       "estado": "aplicada"
@@ -121,22 +209,70 @@
     {
       "id": "D-control",
       "tema": "Control mecánico de lo que propone la IA",
-      "decision": "Una fila entra solo si: la frase está literalmente en el texto guardado; cada número de la fila aparece en la frase; el paper es del lote; los campos están en el esquema; la capa se confirma con el léxico versionado de la capa (si no, la fila queda sin capa). Lo rechazado se guarda con su motivo y se exporta.",
-      "opciones": ["Confiar en la IA", "Control mecánico sin IA (elegida)"],
-      "porque": "Los modelos extraen bien tamaños de grupo (91–94 %) pero mal medias y desviaciones continuas (24–56 %) y a veces inventan; la comprobación literal hace visible y verificable cada dato.",
+      "decision": "Una fila entra solo si: el paper es del lote; la frase existe y es de resultados, conclusiones, título o sin sección; no es antecedente, objetivo ni hipótesis; cada fragmento está escrito en la frase; el tema aparece en la exposición (o en el resultado si el rol es «alterado por»); la dirección no contradice lo que la frase dice sobre significación; el número es un valor (no p-valor ni límite de intervalo). Si la frase habla de asociación, el tipo es asociación aunque la IA diga causal. Capa y tipo de evidencia los pone el código. Lo rechazado se guarda con su motivo.",
+      "opciones": [
+        "Confiar en la IA",
+        "Reglas de palabras para decidir la dirección (refutado)",
+        "Reglas solo para vetar, medidas (elegida)"
+      ],
+      "porque": "Medido sobre 6.292 fragmentos anotados por médicos (bench/offline.mjs): decidir la dirección por palabras acierta el 60 % (refutado); el veto de significación rechaza el 4,3 % de filas correctas y atrapa el 64 % de «efecto→sin efecto» y el 50 % de «sin efecto→efecto», pero solo el 1,2 % de «sube↔baja». Por eso las reglas vetan y la dirección la confirma otra lectura (D-lectura-doble).",
       "evidencia": [
-        { "label": "Extracción de cifras de ensayos con LLM (PMC12448672)", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12448672/" }
+        {
+          "label": "Evidence Inference 2.0 (corpus usado para medir)",
+          "url": "https://arxiv.org/abs/2005.04177"
+        },
+        {
+          "label": "ConText: negación, hipótesis y antecedentes (Harkema 2009)",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/19435614/"
+        },
+        {
+          "label": "Extracción de cifras con LLM (PMC12448672)",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12448672/"
+        }
       ],
       "estado": "aplicada"
     },
     {
+      "id": "D-lectura-doble",
+      "tema": "Cómo se confirma la dirección de un efecto",
+      "decision": "Una segunda lectura independiente responde a ciegas una pregunta cerrada por fila: «según la frase, ¿el resultado es mayor, menor o igual con la exposición que con el comparador?». Si coincide con la primera, la fila se acepta; si no, o si no se puede saber, queda «en revisión» y no se muestra como hecho.",
+      "opciones": [
+        "Una sola lectura",
+        "Doble extracción completa",
+        "Segunda lectura mínima solo de la dirección (elegida)"
+      ],
+      "porque": "Cuatro métodos mecánicos no consiguieron verificar la dirección (bench, D-control): depende de quién se compara con quién y exige leer. La doble extracción independiente es la práctica de Cochrane; basta con repetir la parte que no se puede verificar de otra forma. El acierto real de esta regla con la IA se mide con bench/evidence-inference.mjs.",
+      "evidencia": [
+        {
+          "label": "Buscemi 2006: extracción simple, 21,7 % más errores que la doble",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/16765272/"
+        },
+        {
+          "label": "Dos LLM: concordantes 94 % de acierto frente a 76 % (JAMIA 2025)",
+          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11469465/"
+        },
+        {
+          "label": "Cochrane Handbook cap. 5",
+          "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-05"
+        }
+      ],
+      "estado": "aplicada; acierto con la IA real pendiente de medir (npm run bench:api)"
+    },
+    {
       "id": "D-direccion",
       "tema": "Cómo se resume una diana entre papers",
-      "decision": "Por conteo de dirección (p. ej. '3 disminuye · 1 sin efecto'), no por media de magnitudes.",
-      "opciones": ["Promediar magnitudes", "Conteo de dirección (elegida)", "Votación por significación"],
+      "decision": "Por conteo de dirección de lo aceptado (p. ej. '3 disminuye · 1 sin efecto'), indicando cuántas son solo asociación. No por media de magnitudes.",
+      "opciones": [
+        "Promediar magnitudes",
+        "Conteo de dirección (elegida)",
+        "Votación por significación"
+      ],
       "porque": "Cuando los estudios no comparten escala, la guía SWiM recomienda sintetizar por dirección del efecto; la votación por significación está desaconsejada.",
       "evidencia": [
-        { "label": "Campbell et al. 2020, SWiM, BMJ 368:l6890", "url": "https://www.bmj.com/content/368/bmj.l6890" }
+        {
+          "label": "Campbell et al. 2020, SWiM, BMJ 368:l6890",
+          "url": "https://www.bmj.com/content/368/bmj.l6890"
+        }
       ],
       "estado": "aplicada"
     },
@@ -144,22 +280,39 @@
       "id": "D-cifra",
       "tema": "Cómo se resume una cifra entre papers",
       "decision": "Solo se agrupan valores con el mismo hueco, métrica y unidad. Se muestra mediana + mínimo–máximo + n; con n=1, el valor tal cual. Nunca se convierten unidades.",
-      "opciones": ["Media aritmética", "Mediana + rango (elegida)", "Metaanálisis ponderado"],
+      "opciones": [
+        "Media aritmética",
+        "Mediana + rango (elegida)",
+        "Metaanálisis ponderado"
+      ],
       "porque": "Con 2–5 valores un extremo mueve la media pero no la mediana; SWiM propone mediana y rango de los efectos cuando no hay metaanálisis. Un metaanálisis ponderado exige datos que los abstracts no dan.",
       "evidencia": [
-        { "label": "Campbell et al. 2020, SWiM, BMJ 368:l6890", "url": "https://www.bmj.com/content/368/bmj.l6890" },
-        { "label": "Cochrane Handbook cap. 12 (síntesis sin metaanálisis)", "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-12" }
+        {
+          "label": "Campbell et al. 2020, SWiM, BMJ 368:l6890",
+          "url": "https://www.bmj.com/content/368/bmj.l6890"
+        },
+        {
+          "label": "Cochrane Handbook cap. 12 (síntesis sin metaanálisis)",
+          "url": "https://www.cochrane.org/authors/handbooks-and-manuals/handbook/current/chapter-12"
+        }
       ],
       "estado": "aplicada"
     },
     {
       "id": "D-cadena",
       "tema": "Cómo se forma el recorrido (pipeline)",
-      "decision": "Cada eslabón A → B sale de una frase. Los eslabones de papers distintos se unen si la diana escrita coincide (normalizada: minúsculas, espacios); la cadena se marca 'ensamblada' y cada salto conserva su cita. Nunca se afirma causalidad transitiva ni se inventa un salto.",
-      "opciones": ["Solo cadenas de un mismo paper", "Ensamblar entre papers con cita por salto (elegida)", "Inferir saltos"],
+      "decision": "Cada salto sale de una frase y solo de filas aceptadas: efecto causal tema → resultado, o eslabón A → B. Una asociación no es un salto. Los eslabones de papers distintos se unen si la diana escrita coincide (normalizada); la cadena se marca «ensamblada» y cada salto conserva su frase. Nunca se afirma causalidad transitiva ni se inventa un salto.",
+      "opciones": [
+        "Solo cadenas de un mismo paper",
+        "Ensamblar entre papers con cita por salto (elegida)",
+        "Inferir saltos"
+      ],
       "porque": "Las rutas AOP y Reactome se construyen así: cada relación con su evidencia, la ruta como suma de relaciones citadas.",
       "evidencia": [
-        { "label": "OECD Adverse Outcome Pathways", "url": "https://www.oecd.org/en/topics/sub-issues/testing-of-chemicals/adverse-outcome-pathways.html" }
+        {
+          "label": "OECD Adverse Outcome Pathways",
+          "url": "https://www.oecd.org/en/topics/sub-issues/testing-of-chemicals/adverse-outcome-pathways.html"
+        }
       ],
       "estado": "aplicada; la unión por texto normalizado no reconoce sinónimos (pendiente: normalizar dianas a MeSH/HPO)"
     },
@@ -167,10 +320,16 @@
       "id": "D-estado-capa",
       "tema": "Qué significa el estado de una capa",
       "decision": "Efecto citado (≥1 fila validada) · Solo literatura (hay papers pero ninguna fila validada) · Sin literatura (conteo 0) · No consultada (error). El silencio no se muestra como 'sin efecto'.",
-      "opciones": ["Encendida / apagada", "Cuatro estados (elegida)"],
+      "opciones": [
+        "Encendida / apagada",
+        "Cuatro estados (elegida)"
+      ],
       "porque": "La ausencia de datos en un lote no es evidencia de ausencia de efecto; solo 'sin efecto' con frase del paper lo es.",
       "evidencia": [
-        { "label": "Altman & Bland 1995, Absence of evidence is not evidence of absence, BMJ 311:485", "url": "https://www.bmj.com/content/311/7003/485" }
+        {
+          "label": "Altman & Bland 1995, Absence of evidence is not evidence of absence, BMJ 311:485",
+          "url": "https://www.bmj.com/content/311/7003/485"
+        }
       ],
       "estado": "aplicada"
     },
@@ -178,10 +337,16 @@
       "id": "D-idioma",
       "tema": "Consulta en español",
       "decision": "Si hay servicio de IA, el tema se pasa a términos de búsqueda en inglés; si no, se usa tal cual. La consulta enviada y la traducción de PubMed se muestran y se exportan.",
-      "opciones": ["Consulta literal", "Traducción asistida y visible (elegida)"],
+      "opciones": [
+        "Consulta literal",
+        "Traducción asistida y visible (elegida)"
+      ],
       "porque": "PubMed indexa en inglés; la traducción visible permite auditar qué se buscó.",
       "evidencia": [
-        { "label": "PubMed Automatic Term Mapping", "url": "https://pubmed.ncbi.nlm.nih.gov/help/#automatic-term-mapping" }
+        {
+          "label": "PubMed Automatic Term Mapping",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/help/#automatic-term-mapping"
+        }
       ],
       "estado": "aplicada"
     },
@@ -189,10 +354,16 @@
       "id": "D-fuente",
       "tema": "Fuente de literatura",
       "decision": "PubMed para todo el recorrido (necesita MeSH). OpenAlex solo para enlazar PDF abierto legal. Si PubMed no responde, la app lo dice y no sustituye la fuente.",
-      "opciones": ["PubMed con respaldo OpenAlex en búsqueda", "PubMed + OpenAlex solo para PDF abierto (elegida)"],
+      "opciones": [
+        "PubMed con respaldo OpenAlex en búsqueda",
+        "PubMed + OpenAlex solo para PDF abierto (elegida)"
+      ],
       "porque": "OpenAlex no trae MeSH ni el mismo orden de relevancia: mezclarlo cambiaría qué significa cada cifra del mapa.",
       "evidencia": [
-        { "label": "OpenAlex API", "url": "https://docs.openalex.org/" }
+        {
+          "label": "OpenAlex API",
+          "url": "https://docs.openalex.org/"
+        }
       ],
       "estado": "aplicada"
     },
@@ -200,22 +371,49 @@
       "id": "D-reproducible",
       "tema": "Reproducibilidad",
       "decision": "Cada búsqueda produce un dossier con fecha, consultas exactas, conteos, papers y su texto, filas aceptadas y rechazadas, versiones de capas/esquema/decisiones, modelo y versión del prompt. Se puede exportar y reabrir.",
-      "opciones": ["Solo pantalla", "Dossier exportable (elegida)"],
+      "opciones": [
+        "Solo pantalla",
+        "Dossier exportable (elegida)"
+      ],
       "porque": "La recuperación reactiva por consulta no es reproducible para auditoría si no se guarda lo que se recuperó.",
       "evidencia": [
-        { "label": "Provenance Gap en RAG clínico, arXiv 2604.17114", "url": "https://arxiv.org/abs/2604.17114" }
+        {
+          "label": "Provenance Gap en RAG clínico, arXiv 2604.17114",
+          "url": "https://arxiv.org/abs/2604.17114"
+        }
       ],
+      "estado": "aplicada"
+    },
+    {
+      "id": "D-registro",
+      "tema": "Registro de lo que hace la IA",
+      "decision": "Cada llamada a la IA (petición, respuesta, modelo, versión del prompt, tiempo, error) y cada dossier final se guardan en una base de datos del servicio (Cloudflare D1), agrupados por id de ejecución. El id aparece en el dossier exportado.",
+      "opciones": [
+        "Sin registro",
+        "Registro persistente por ejecución (elegida)"
+      ],
+      "porque": "Sin registro no se puede auditar un resultado ni medir errores reales después.",
+      "evidencia": [],
       "estado": "aplicada"
     },
     {
       "id": "D-validacion",
       "tema": "Contraste del resultado con referencias externas",
       "decision": "Comparar las capas obtenidas con anotaciones curadas: HPO (enfermedades) y CTD (sustancias).",
-      "opciones": ["Sin contraste", "Contraste con HPO/CTD"],
+      "opciones": [
+        "Sin contraste",
+        "Contraste con HPO/CTD"
+      ],
       "porque": "Es la forma de medir si el recorrido acierta antes de fiarse de él.",
       "evidencia": [
-        { "label": "HPO annotations", "url": "https://hpo.jax.org/data/annotations" },
-        { "label": "CTD", "url": "https://ctdbase.org/" }
+        {
+          "label": "HPO annotations",
+          "url": "https://hpo.jax.org/data/annotations"
+        },
+        {
+          "label": "CTD",
+          "url": "https://ctdbase.org/"
+        }
       ],
       "estado": "pendiente: no implementado todavía"
     }

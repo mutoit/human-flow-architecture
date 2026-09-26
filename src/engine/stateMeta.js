@@ -16,13 +16,9 @@ export const LAYER_STATES = {
 
 export const LAYER_STATE_ORDER = ['efecto', 'literatura', 'sin_literatura', 'error']
 
-export const DIRECTION_LABEL = {
-  aumenta: 'aumenta',
-  disminuye: 'disminuye',
-  sin_efecto: 'sin efecto',
-  asociado: 'asociado',
-  mixto: 'mixto',
-}
+export const DIRECTION_LABEL = { aumenta: 'aumenta', disminuye: 'disminuye', sin_efecto: 'sin efecto' }
+
+export const CLAIM_LABEL = { causal: 'efecto', asociacion: 'asociación' }
 
 export const ROLE_LABEL = {
   actua_sobre: 'actúa sobre',

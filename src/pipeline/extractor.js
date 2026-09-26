@@ -1,6 +1,7 @@
-// Cliente del servicio extractor (decisión D-extractor). La clave de la IA
-// vive en el servicio; el navegador solo conoce su URL pública
-// (VITE_EXTRACTOR_URL). Sin URL, no hay extracción y la app lo dice.
+// Cliente del servicio (decisión D-extractor). La clave de la IA vive en
+// el servicio; el navegador solo conoce su URL (VITE_EXTRACTOR_URL; en el
+// despliegue de Cloudflare es la misma web: /api/extract). Sin URL, no hay
+// extracción y la app lo dice.
 
 const ENDPOINT = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EXTRACTOR_URL) || null
 
@@ -19,7 +20,13 @@ async function call(body) {
 }
 
 /** Q: { query_en, kind, model, promptVersion }. */
-export const normalizeTopic = (query) => call({ op: 'normalize', query })
+export const normalizeTopic = (query, runId) => call({ op: 'normalize', query, runId })
 
 /** Q: { rows: { effects, measures, links }, model, promptVersion }. */
 export const extractRows = (payload) => call({ op: 'extract', ...payload })
+
+/** Segunda lectura ciega. Q: { answers: [{ key, direction }], model, promptVersion }. */
+export const verifyDirections = (items, runId) => call({ op: 'verify', items, runId })
+
+/** Guarda el dossier final en el registro del servicio (best effort). */
+export const logDossier = (dossier) => call({ op: 'log_dossier', runId: dossier.runId, dossier }).catch(() => null)

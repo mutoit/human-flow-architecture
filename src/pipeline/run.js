@@ -3,7 +3,8 @@
 //   1. mapa: conteos PubMed por capa (D-mapa, D-volumen)
 //   2. selección: 2 revisiones + 1 primario por capa (D-seleccion)
 //   3. lectura: registros con abstract, tipos y MeSH (D-texto, D-metadatos)
-//   4. extracción + control mecánico (D-extractor, D-esquema, D-control)
+//   4. extracción por señalamiento + control + segunda lectura ciega
+//      (D-extractor, D-esquema, D-control, D-lectura-doble)
 //   5. enlaces a PDF abierto legal (D-fuente)
 // Cada etapa escribe en el dossier; un fallo parcial queda registrado y
 // no borra lo ya obtenido.
@@ -11,10 +12,10 @@
 import { LAYERS, SCHEMA, layerMeshQuery, slotsFor } from '../method/method.js'
 import * as pubmed from '../engine/sources/pubmed.js'
 import { openAlexOaUrl } from '../engine/sources/openalex.js'
-import { paperText } from '../engine/paper.js'
-import { emptyDossier, gateContext } from './dossier.js'
-import { extractRows, extractorAvailable, normalizeTopic } from './extractor.js'
-import { gateRows } from './gate.js'
+import { deriveRows, emptyDossier } from './dossier.js'
+import { extractRows, extractorAvailable, logDossier, normalizeTopic, verifyDirections } from './extractor.js'
+import { applyVerification, buildContext, gateRows, verificationItems } from './gate.js'
+import { renderForModel } from './segment.js'
 
 const REVIEWS = '(systematic[sb] OR review[pt])'
 const PER_LAYER = { revision: 2, primario: 1 }
@@ -53,7 +54,8 @@ async function mapLimit(items, limit, fn) {
  * Q: dossier final.
  */
 export async function runTopic(input, onProgress = () => {}) {
-  const d = emptyDossier({ input })
+  const runId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now())
+  const d = emptyDossier({ input, runId })
   const emit = (stage, message) => onProgress(structuredClone(d), { stage, message })
   const fail = (stage, err) => d.errors.push({ stage, message: err.message ?? String(err) })
 
@@ -61,7 +63,7 @@ export async function runTopic(input, onProgress = () => {}) {
   emit('consulta', 'Preparando la consulta…')
   if (extractorAvailable()) {
     try {
-      const n = await normalizeTopic(input)
+      const n = await normalizeTopic(input, runId)
       d.queryUsed = n.query_en
       d.kind = SCHEMA.kinds.includes(n.kind) ? n.kind : 'otro'
       d.normalizedBy = 'ia'
@@ -158,33 +160,39 @@ export async function runTopic(input, onProgress = () => {}) {
   }
   const batches = LAYERS.map((layer) => ({
     layer: layer.id,
-    pmids: Object.values(d.papers).filter((p) => p.retrieval.layer === layer.id && p.abstract).map((p) => p.pmid),
+    pmids: Object.values(d.papers).filter((p) => p.retrieval.layer === layer.id && p.sections.length).map((p) => p.pmid),
   })).filter((b) => b.pmids.length)
   const allowedSlots = slotsFor(d.kind)
+  const ctx = buildContext({ papers: new Map(Object.entries(d.papers)), kind: d.kind, topic: d.queryUsed })
   let done = 0
   await mapLimit(batches, EXTRACT_CONCURRENCY, async (batch) => {
-    const record = { layer: batch.layer, pmids: batch.pmids, status: 'ok' }
+    const record = { layer: batch.layer, pmids: batch.pmids, status: 'ok', raw: null, verify: null }
     try {
       const res = await extractRows({
+        runId,
         topic: d.queryUsed,
         kind: d.kind,
         slots: allowedSlots,
-        layers: LAYERS.map((l) => ({ id: l.id, name: l.name })),
-        papers: batch.pmids.map((id) => ({ id, text: paperText(d.papers[id]) })),
+        papers: batch.pmids.map((id) => ({ id, text: renderForModel(id, ctx.segments.get(id)) })),
       })
       d.method.extractor = { model: res.model, promptVersion: res.promptVersion }
-      const gated = gateRows(res.rows ?? {}, gateContext(d))
-      d.rows.effects.push(...gated.effects)
-      d.rows.measures.push(...gated.measures)
-      d.rows.links.push(...gated.links)
-      d.rejected.push(...gated.rejected)
-      record.accepted = gated.effects.length + gated.measures.length + gated.links.length
-      record.rejected = gated.rejected.length
+      record.raw = res.rows ?? {}
+      const items = verificationItems(gateRows(record.raw, ctx))
+      if (items.length) {
+        const v = await verifyDirections(items, runId)
+        record.verify = v.answers ?? []
+        d.method.verifier = { model: v.model, promptVersion: v.promptVersion }
+      }
+      const rows = applyVerification(gateRows(record.raw, ctx), record.verify)
+      record.accepted = [...rows.effects, ...rows.measures, ...rows.links].filter((r) => r.status === 'aceptada').length
+      record.inReview = [...rows.effects, ...rows.links].filter((r) => r.status === 'en_revision').length
+      record.rejected = rows.rejected.length
     } catch (err) {
       record.status = 'error'
       record.error = err.message
     }
     d.extraction.batches.push(record)
+    Object.assign(d, deriveRows(d))
     done++
     emit('extraccion', `Leyendo papers con el extractor… (${done}/${batches.length} capas)`)
   })
@@ -202,6 +210,8 @@ export async function runTopic(input, onProgress = () => {}) {
     },
   )
 
+  Object.assign(d, deriveRows(d))
+  await logDossier(d)
   emit('fin', 'Listo.')
   return d
 }

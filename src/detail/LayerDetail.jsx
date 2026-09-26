@@ -43,7 +43,7 @@ export function MeasureLine({ s }) {
 
 export default function LayerDetail({ summary, index, onSelectTarget, activeTargetKey }) {
   if (!summary) return <p className="detail-card__empty">Selecciona una capa.</p>
-  const { layer, state, map, papersRead, papersWithRows, targets } = summary
+  const { layer, state, map, papersRead, papersWithRows, targets, inReview } = summary
   const meta = LAYER_STATES[state]
 
   return (
@@ -111,6 +111,7 @@ export default function LayerDetail({ summary, index, onSelectTarget, activeTarg
                     ))}
                     <span className="target-list__papers">
                       {t.papers} paper{t.papers > 1 ? 's' : ''}
+                      {t.associations ? ` · ${t.associations} solo asociación` : ''}
                       {t.contradictory ? ' · direcciones opuestas' : ''}
                     </span>
                   </button>
@@ -125,6 +126,26 @@ export default function LayerDetail({ summary, index, onSelectTarget, activeTarg
             </p>
           )}
         </section>
+
+        {inReview.length ? (
+          <section>
+            <h3 className="detail-card__h3">En revisión ({inReview.length})</h3>
+            <p className="detail-card__note">
+              Dos lecturas independientes no coinciden en la dirección: no se muestran como hecho.
+            </p>
+            <ul className="evidence-list">
+              {inReview.map((r, i) => (
+                <li key={i} className="evidence evidence--review">
+                  <blockquote className="evidence__quote">«{r.quote}»</blockquote>
+                  <p className="evidence__meta">
+                    {r.target ?? `${r.from_target} → ${r.to_target}`}: 1.ª lectura «{DIRECTION_LABEL[r.direction]}», 2.ª «
+                    {DIRECTION_LABEL[r.secondReading] ?? r.secondReading ?? 'sin respuesta'}» · PMID {r.paperId}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         {papersRead.length ? (
           <section>

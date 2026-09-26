@@ -56,14 +56,11 @@ function parseArticle(article) {
   const citation = article.querySelector('MedlineCitation')
   const pmid = text(citation?.querySelector(':scope > PMID'))
   const art = citation?.querySelector(':scope > Article')
-  const abstract = [...(art?.querySelectorAll(':scope > Abstract > AbstractText') ?? [])]
-    .map((el) => {
-      const t = text(el)
-      const label = el.getAttribute('Label')
-      return label && t ? `${label}: ${t}` : t
-    })
-    .filter(Boolean)
-    .join(' ')
+  // Secciones del abstract con su categoría normalizada de la NLM
+  // (BACKGROUND, OBJECTIVE, METHODS, RESULTS, CONCLUSIONS, UNASSIGNED).
+  const sections = [...(art?.querySelectorAll(':scope > Abstract > AbstractText') ?? [])]
+    .map((el) => ({ category: el.getAttribute('NlmCategory') || null, label: el.getAttribute('Label') || null, text: text(el) }))
+    .filter((sec) => sec.text)
   const authors = [...(art?.querySelectorAll(':scope > AuthorList > Author') ?? [])].map((a) =>
     [text(a.querySelector('LastName')), text(a.querySelector('Initials'))].filter(Boolean).join(' ') || text(a.querySelector('CollectiveName')),
   )
@@ -83,7 +80,7 @@ function parseArticle(article) {
     year,
     pubTypes: [...(art?.querySelectorAll('PublicationTypeList > PublicationType') ?? [])].map(text),
     mesh: [...(citation?.querySelectorAll('MeshHeadingList > MeshHeading > DescriptorName') ?? [])].map(text),
-    abstract,
+    sections,
   })
 }
 

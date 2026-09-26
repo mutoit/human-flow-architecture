@@ -5,7 +5,7 @@
 import { DECISIONS, LAYERS, layerOf } from '../method/method.js'
 import { layerSummaries, targetsOf } from '../pipeline/aggregate.js'
 import { chainsOf, TOPIC_KEY } from '../pipeline/chain.js'
-import { DESIGN_LABEL, DIRECTION_LABEL, LAYER_STATES, LINK_LABEL, ROLE_LABEL, SPECIES_LABEL } from '../engine/stateMeta.js'
+import { CLAIM_LABEL, DESIGN_LABEL, DIRECTION_LABEL, LAYER_STATES, LINK_LABEL, ROLE_LABEL, SPECIES_LABEL } from '../engine/stateMeta.js'
 
 const slug = (d) => (d.input || 'dossier').toLowerCase().normalize('NFD').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '')
 const pct = (x) => `${(x * 100).toFixed(1)} %`
@@ -39,6 +39,8 @@ export function dossierMarkdown(d) {
   L.push(`- Papers del tema en PubMed: ${d.map.total ?? '—'} · leídos: ${Object.keys(d.papers).length}`)
   L.push(`- Método: capas v${d.method.layers} · esquema v${d.method.schema} · decisiones v${d.method.decisions}`)
   L.push(`- Extractor: ${d.method.extractor ? `${d.method.extractor.model} (prompt v${d.method.extractor.promptVersion})` : 'no disponible — solo mapa (D-extractor)'}`)
+  if (d.method.verifier) L.push(`- Segunda lectura: ${d.method.verifier.model} (prompt v${d.method.verifier.promptVersion})`)
+  L.push(`- Id de ejecución (registro del servicio): ${d.runId ?? '—'}`)
   if (d.errors.length) L.push(`- Incidencias: ${d.errors.map((e) => `${e.stage}: ${e.message}`).join(' · ')}`)
   L.push('')
 
@@ -65,13 +67,13 @@ export function dossierMarkdown(d) {
     }
     L.push('')
     for (const e of t.effects) {
-      L.push(`- ${DIRECTION_LABEL[e.predicate]} · ${ROLE_LABEL[e.role]} · nivel ${e.level} · capa ${e.layer ?? '—'} (${e.layerSource})`)
-      L.push(`  > ${e.quote}`)
+      L.push(`- ${DIRECTION_LABEL[e.direction]} · ${CLAIM_LABEL[e.claim]}${e.claimForced ? ' (forzado por la frase)' : ''} · ${ROLE_LABEL[e.role]} · exposición «${e.exposure}»${e.comparator ? ` vs «${e.comparator}»` : ''} · capa ${e.layer ?? '—'} · 2.ª lectura: ${DIRECTION_LABEL[e.secondReading]}`)
+      L.push(`  > [${e.sentence}] ${e.quote}`)
       L.push(`  — ${paperRef(paper(e.paperId))}`)
     }
     for (const m of t.measures) {
-      L.push(`- ${m.slot} = ${m.value}${m.unit ? ` ${m.unit}` : ''}${m.metric ? ` (${m.metric})` : ''}`)
-      L.push(`  > ${m.quote}`)
+      L.push(`- ${m.slot} = ${m.value}${m.unit ? ` ${m.unit}` : ''}${m.metric ? ` (${m.metric})` : ''}${m.group ? ` · grupo «${m.group}»` : ''} · número ${m.numberId}`)
+      L.push(`  > [${m.sentence}] ${m.quote}`)
       L.push(`  — ${paperRef(paper(m.paperId))}`)
     }
     L.push('')
@@ -95,8 +97,16 @@ export function dossierMarkdown(d) {
   }
   L.push('')
 
+  const review = [...d.rows.effects, ...d.rows.links].filter((r) => r.status === 'en_revision')
+  L.push(`## En revisión: lecturas que no coinciden (${review.length}) — D-lectura-doble`, '')
+  for (const r of review) {
+    L.push(`- ${r.target ?? `${r.from_target} → ${r.to_target}`}: 1.ª «${r.direction}», 2.ª «${r.secondReading ?? 'sin respuesta'}» — PMID ${r.paperId}`)
+    L.push(`  > [${r.sentence}] ${r.quote}`)
+  }
+  L.push('')
+
   L.push(`## Filas rechazadas por el control (${d.rejected.length})`, '')
-  for (const r of d.rejected) L.push(`- ${r.type} · PMID ${r.row?.paperId ?? '—'}: ${r.reasons.join('; ')}`)
+  for (const r of d.rejected) L.push(`- ${r.type} · PMID ${r.row?.paperId ?? '—'} · ${r.row?.sentence ?? ''}: ${r.reasons.join('; ')}`)
   L.push('')
 
   L.push('## Decisiones de método', '')

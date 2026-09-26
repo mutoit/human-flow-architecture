@@ -5,14 +5,16 @@
 import { LAYERS, SCHEMA } from '../method/method.js'
 import { decimalsOf, targetKey } from './text.js'
 
+/** Solo lo aceptado se muestra como hecho (D-lectura-doble). */
+export const accepted = (rows) => rows.filter((r) => r.status === 'aceptada')
+
 /** Estado de capa (D-estado-capa): efecto | literatura | sin_literatura | error | pendiente. */
 export function layerState(dossier, layerId) {
   const entry = dossier.map?.layers?.[layerId]
   if (!entry) return 'pendiente'
   if (entry.error) return 'error'
   if (entry.count === 0) return 'sin_literatura'
-  const rows = dossier.rows
-  const has = rows.effects.some((r) => r.layer === layerId) || rows.measures.some((r) => r.layer === layerId)
+  const has = [...accepted(dossier.rows.effects), ...accepted(dossier.rows.measures)].some((r) => r.layer === layerId)
   return has ? 'efecto' : 'literatura'
 }
 
@@ -44,7 +46,7 @@ export function summarizeMeasures(measures) {
   })
 }
 
-const EMPTY_COUNTS = () => Object.fromEntries(Object.keys(SCHEMA.predicates).map((p) => [p, 0]))
+const EMPTY_COUNTS = () => Object.fromEntries(Object.keys(SCHEMA.directions).map((p) => [p, 0]))
 
 /** Dianas del dossier (efectos + cifras), agrupadas por diana normalizada. */
 export function targetsOf(dossier) {
@@ -56,16 +58,17 @@ export function targetsOf(dossier) {
     if (row.layer) t.layers.add(row.layer)
     return t
   }
-  for (const e of dossier.rows.effects) get(e).effects.push(e)
-  for (const m of dossier.rows.measures) get(m).measures.push(m)
+  for (const e of accepted(dossier.rows.effects)) get(e).effects.push(e)
+  for (const m of accepted(dossier.rows.measures)) get(m).measures.push(m)
 
   return [...byKey.values()].map((t) => {
     const directions = EMPTY_COUNTS()
-    for (const e of t.effects) directions[e.predicate]++
+    for (const e of t.effects) directions[e.direction]++
     return {
       ...t,
       layers: [...t.layers],
       directions,
+      associations: t.effects.filter((e) => e.claim === 'asociacion').length,
       contradictory: directions.aumenta > 0 && directions.disminuye > 0,
       papers: new Set([...t.effects, ...t.measures].map((r) => r.paperId)).size,
       measureSummary: summarizeMeasures(t.measures),
@@ -81,7 +84,10 @@ export function layerSummaries(dossier) {
     const papersRead = Object.values(dossier.papers ?? {}).filter((p) => p.retrievedFor?.includes(layer.id))
     const layerTargets = targets.filter((t) => t.layers.includes(layer.id))
     const talking = new Set(
-      [...dossier.rows.effects, ...dossier.rows.measures].filter((r) => r.layer === layer.id).map((r) => r.paperId),
+      [...accepted(dossier.rows.effects), ...accepted(dossier.rows.measures)].filter((r) => r.layer === layer.id).map((r) => r.paperId),
+    )
+    const inReview = [...dossier.rows.effects, ...dossier.rows.links].filter(
+      (r) => r.status === 'en_revision' && (r.layer === layer.id || r.to_layer === layer.id),
     )
     return {
       layer,
@@ -89,6 +95,7 @@ export function layerSummaries(dossier) {
       map: entry,
       papersRead,
       papersWithRows: talking.size,
+      inReview,
       targets: layerTargets,
     }
   })

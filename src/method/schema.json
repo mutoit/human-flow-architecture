@@ -1,5 +1,5 @@
 {
-  "version": "1",
+  "version": "2",
   "kinds": [
     "enfermedad",
     "hormona",
@@ -13,12 +13,14 @@
     "origen": "El tema se produce, se sintetiza o se activa en esa diana.",
     "marcador": "El tema o la diana se mide ahí; no se afirma un efecto."
   },
-  "predicates": {
-    "aumenta": "La diana sube / empeora en su magnitud.",
-    "disminuye": "La diana baja.",
-    "sin_efecto": "El paper afirma que no hay diferencia o efecto.",
-    "asociado": "Asociación sin sentido causal afirmado.",
-    "mixto": "El paper describe resultados en ambos sentidos."
+  "directions": {
+    "aumenta": "El resultado es mayor con la exposición que con el comparador (o que antes).",
+    "disminuye": "El resultado es menor.",
+    "sin_efecto": "El paper afirma que no hay diferencia."
+  },
+  "claims": {
+    "causal": "El paper afirma un efecto.",
+    "asociacion": "El paper solo afirma una asociación o correlación."
   },
   "linkPredicates": {
     "aumenta": "A sube B.",
@@ -27,17 +29,41 @@
     "inhibe": "A inhibe B.",
     "causa": "A causa B."
   },
-  "levels": [
-    "molecular",
-    "celular",
-    "tejido",
-    "organo",
-    "organismo"
+  "linkDirection": {
+    "aumenta": "aumenta",
+    "activa": "aumenta",
+    "causa": "aumenta",
+    "disminuye": "disminuye",
+    "inhibe": "disminuye"
+  },
+  "acceptedSections": [
+    "RESULTS",
+    "CONCLUSIONS",
+    "TITLE",
+    "UNASSIGNED",
+    null
+  ],
+  "cues": {
+    "background": "\\b(previous(ly)?|prior studies|has been (reported|shown|suggested)|have been (reported|shown|suggested)|is known|are known|it is thought|we aimed|we aim|aim(ed)? of|to investigate|to evaluate|to assess|to determine|to examine|hypothes\\w*)\\b",
+    "association": "\\b(associat\\w*|correlat\\w*|linked)\\b",
+    "noEffect": "\\b(no (statistically )?significant|not (statistically )?significant(ly)?|did not (significantly )?(differ|change)|no (significant )?(difference|change|effect)|non-?significant|similar|comparable|unchanged)\\b",
+    "effect": "\\b(significant(ly)?)\\b|\\bp\\s*[<≤]\\s*0?\\.0[0-4]"
+  },
+  "verifyAnswers": [
+    "aumenta",
+    "disminuye",
+    "sin_efecto",
+    "indeterminado"
   ],
   "evidenceKinds": {
     "medido": "Dato propio del estudio.",
     "afirmado_revision": "Afirmación de una revisión que resume otros estudios."
   },
+  "reviewDesigns": [
+    "metaanalisis",
+    "revision_sistematica",
+    "revision_narrativa"
+  ],
   "slots": {
     "comun": [
       "n",

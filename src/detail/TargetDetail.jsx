@@ -2,7 +2,7 @@
 // los recorridos citados que pasan por ella.
 
 import { layerOf } from '../method/method.js'
-import { DIRECTION_LABEL, LINK_LABEL, ROLE_LABEL, signOf } from '../engine/stateMeta.js'
+import { CLAIM_LABEL, DIRECTION_LABEL, LINK_LABEL, ROLE_LABEL, signOf } from '../engine/stateMeta.js'
 import { TOPIC_KEY } from '../pipeline/chain.js'
 import { DirectionChips, MeasureLine } from './LayerDetail.jsx'
 import { RowEvidence } from './Evidence.jsx'
@@ -73,12 +73,23 @@ export default function TargetDetail({ target, dossier, chains }) {
             <h3 className="detail-card__h3">Frases que lo respaldan</h3>
             <ul className="evidence-list">
               {target.effects.map((e, i) => (
-                <RowEvidence key={i} row={e} paper={paper(e.paperId)}>
-                  <span className={`tag tag--${signOf(e.predicate)}`}>{DIRECTION_LABEL[e.predicate]}</span>
+                <RowEvidence
+                  key={i}
+                  row={e}
+                  paper={paper(e.paperId)}
+                  marks={[
+                    [e.exposure, 'exposure'],
+                    [e.target, 'target'],
+                    [e.comparator, 'comparator'],
+                  ]}
+                >
+                  <span className={`tag tag--${signOf(e.direction)}`}>{DIRECTION_LABEL[e.direction]}</span>
+                  <span className="tag" title={e.claimForced ? 'La frase habla de asociación: se marca así aunque la IA dijera efecto.' : ''}>
+                    {CLAIM_LABEL[e.claim]}
+                  </span>
                   <span className="tag">{ROLE_LABEL[e.role]}</span>
-                  <span className="tag">nivel {e.level}</span>
-                  <span className="tag">{EVIDENCE_KIND_LABEL[e.evidence_kind]}</span>
-                  {e.layerSource === 'lexico' ? <span className="tag" title="La capa propuesta por la IA no se confirmó; se asignó por el léxico de capas.">capa por léxico</span> : null}
+                  <span className="tag">{EVIDENCE_KIND_LABEL[e.evidenceKind]}</span>
+                  <span className="tag" title="Una segunda lectura independiente llegó a la misma dirección.">2 lecturas coinciden</span>
                 </RowEvidence>
               ))}
             </ul>
@@ -93,14 +104,15 @@ export default function TargetDetail({ target, dossier, chains }) {
             ))}
             <ul className="evidence-list">
               {target.measures.map((m, i) => (
-                <RowEvidence key={i} row={m} paper={paper(m.paperId)}>
+                <RowEvidence key={i} row={m} paper={paper(m.paperId)} marks={[[m.target, 'target'], [m.group, 'comparator']]}>
                   <span className="tag">{m.slot}</span>
                   <span className="tag tag--value">
                     {m.value}
                     {m.unit ? ` ${m.unit}` : ''}
                   </span>
                   {m.metric ? <span className="tag">{m.metric}</span> : null}
-                  {m.timepoint ? <span className="tag">{m.timepoint}</span> : null}
+                  {m.group ? <span className="tag">grupo: {m.group}</span> : null}
+                  {m.unitInherited ? <span className="tag" title="La unidad aparece una vez para varios valores de la frase.">unidad compartida</span> : null}
                 </RowEvidence>
               ))}
             </ul>

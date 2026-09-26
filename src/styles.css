@@ -1524,3 +1524,27 @@ a {
   flex-shrink: 1;
   min-width: 0;
 }
+
+.evidence__mark {
+  background: none;
+  color: inherit;
+  border-bottom: 1px solid var(--color-line-strong);
+}
+
+.evidence__mark--target {
+  color: var(--color-gold);
+  border-bottom-color: var(--color-gold);
+}
+
+.evidence__mark--exposure {
+  color: var(--color-fg);
+  font-weight: 600;
+}
+
+.evidence__mark--comparator {
+  color: var(--color-muted);
+}
+
+.evidence--review {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-split) 40%, transparent);
+}
