@@ -7,7 +7,7 @@ date: 2026-09-21
 slug: extract-capas-media
 legitimidad: mixto
 decision: refactorizar
-schema_open: true
+schema_open: false  # propuesta v1 en sección H, pendiente de OK del dueño
 ---
 #  CORE APP
 	El usuario busca un termino: enfermedad, sintoma, hormona, vitamina, etc. La app realiza una busqueda de los papers mas valorados, relevantes del tema, El agente muestra los datos mas revelantes aceptados por convencion mundial sobre el tema,
@@ -291,11 +291,124 @@ Origen: un análisis externo pegado por el dueño. Etiquetas: `[repo]` comprobad
 - **G13. Texto completo solo OA** (C5): se usa únicamente para papers con PMC abierto; no es requisito del flujo base.
 - **G14. Cobertura del mapa de capas.** Medir qué % de términos anatómicos de ~50 abstracts cae en `unmapped`; si es alto, el visor queda vacío y hay que ampliar la tabla antes de mostrar nada.
 
+## H. Esquema v1 propuesto (2026-09-26) — evidencia, contraste y lock pendiente de OK del dueño
+
+Objetivo acotado: con ≤5 papers de un tema (hormona, vitamina, enfermedad, síntoma) ver **en qué capas golpea, en qué sentido y por qué cadena llega ahí**, con cada dato citado. No pretende ser un meta-análisis ni un grafo universal.
+
+### H1. Evidencia usada para decidir
+
+| Fuente | Qué aporta al esquema | Etiqueta |
+|---|---|---|
+| Cochrane Handbook cap. 5 | Formulario **fijo antes de leer**; outcome = dominio + métrica + unidad + momento + n | [externo, ya citado arriba] |
+| COMET outcome taxonomy (Dodd et al., J Clin Epidemiol 2018) | 38 dominios en 5 áreas (mortalidad, fisiológico/clínico, impacto en vida, recursos, adversos); lo fisiológico **se agrupa por sistema corporal** | [externo] |
+| OECD Adverse Outcome Pathways | Cadena **evento inicial → eventos clave → desenlace**, cada salto ubicado en un **nivel biológico** (molecular, celular, tejido, órgano, organismo) y unido por relaciones causales citadas (KER) | [externo] |
+| SemRep / SemMedDB (NLM) | Relaciones extraídas de PubMed como sujeto–**predicado cerrado**–objeto (CAUSES, INHIBITS, STIMULATES, AFFECTS, ASSOCIATED_WITH, PREVENTS…) | [externo] |
+| SWiM (Campbell et al., BMJ 2020) | Sin escala común → resumir por **dirección del efecto**, no por media | [externo] |
+| MeSH (NLM, gratuito) árboles A (anatomía) y C (enfermedades por sistema) | Vocabulario libre por sistema para construir la tabla alias → 7 capas, sin licencia (a diferencia de MedDRA) | [externo] |
+| LLM extrayendo cifras de RCT (PMC12448672, 699 abstracts) | Tamaño de grupo 91–94 %; eventos binarios 57–71 %; **media/DE continuas 24–56 %** | [externo] |
+| Catálogo vitamina D del repo | 10 aristas de cadena: **6 sin cita**, 3 de revisiones narrativas, 1 de metaanálisis. Hallazgos: 11 de 21 son de revisiones | [repo] |
+
+Conclusiones que fuerzan el diseño:
+1. La **cadena (pipeline)** casi nunca sale de un ensayo; sale de revisiones → hace falta un tipo de fila propio para los saltos y marcar su origen.
+2. Las **cifras continuas** son lo que peor extrae un LLM → pocas cifras, siempre con gate; la **dirección** es la unidad fuerte.
+3. Las **7 capas** agrupan demasiado (endocrino, cardiovascular, digestivo, renal y músculo caen en «órganos») → se guarda además un **sistema** fino, sin tocar las 7 capas del visor.
+
+### H2. El esquema (v1)
+
+Sobre (igual que el cerrado arriba) + tres tipos de fila. Todas las filas comparten: `paperId`, `quote` (⊆ texto guardado), `design`, `n_paper`, `population` (texto corto del paper | null).
+
+```text
+TopicFill v1
+  schema_version: "1"
+  query, query_used_en        # consulta del usuario y la enviada (C6)
+  kind: enfermedad | hormona | vitamina | sintoma
+  source: pubmed | openalex   # un lote = una fuente (G11)
+  papers[≤5]: { id, ranking_position, design, n_paper, text_hash, has_abstract }
+  effects[]  measures[]  links[]
+
+Effect      # «X afecta a esta diana» → alimenta capas on/off y dirección
+  target        # entidad del paper tal cual (p. ej. "LDL cholesterol", "bone mineral density")
+  system        # enum ~14 derivado de MeSH A/C (tabla, no LLM)
+  layer         # 7 capas | unmapped — por tabla alias (D4), nunca por el LLM
+  level         # molecular | celular | tejido | organo | organismo (AOP)
+  predicate     # aumenta | disminuye | sin_efecto | asociado | mixto
+  evidence_kind # medido | afirmado_revision   (dato propio vs lo que cita una revisión)
+
+Measure     # cifra concreta; SOLO slots de la lista del kind
+  slot, value, unit, metric, timepoint | null
+  target, layer                # igual que Effect
+
+Link        # un salto de la cadena, solo si UNA quote lo afirma
+  from_target, to_target, predicate   # aumenta | disminuye | activa | inhibe | causa
+  from_layer, to_layer                # por tabla
+```
+
+**Slots de Measure (cerrados, pocos a propósito):**
+
+| kind | slots |
+|---|---|
+| común | `n`, `dose` (+unit), `effect_size` (+metric: OR/RR/HR/MD/SMD) |
+| hormona | `concentration` (+unit, `timepoint`), `ref_low`/`ref_high` solo si el mismo paper los da |
+| vitamina | `serum_level` (+unit), `threshold` (del paper) |
+| enfermedad | `prevalence`, `incidence`, `mortality` |
+| sintoma | `score` (+`scale_name` literal) , `prevalence` |
+
+**Sistema → capa (tabla de producto, versionada, fail-close):**
+
+| system (MeSH origen) | capa |
+|---|---|
+| sangre (A12 sangre, A15 hemático, C15) | sangre |
+| inmune/linfático (A15 inmune, C20) | linfatico |
+| cardiovascular (A07, C14) · respiratorio (A04, C08) · digestivo/hígado (A03, C06) · renal/urogenital (A05, C12) · endocrino (A06, C19) · metabólico (C18) | organos |
+| músculo-esquelético (A02, C05) | hueso |
+| piel (A17, C17 piel) | piel |
+| nervioso/mental (A08, C10, F03) | nervioso |
+| ojo/oído (A09, C09, C11) | sentidos |
+| resto | unmapped |
+
+Músculo en `hueso`: MeSH lo agrupa como musculoesquelético; el catálogo actual lo pone en `nervioso` (neuromuscular). **Decisión del dueño.**
+
+### H3. Cómo se ve el resultado (sin calcular clínica)
+
+- **Capa:** encendida si ≥1 Effect/Measure; texto «k de N papers hablan de esta capa» (C1).
+- **Dirección por diana:** «3 ↓ · 1 sin efecto» (conteo, SWiM). Nada de medias aquí.
+- **Cifra:** solo si mismo `slot`+`metric`+`unit`: mediana + min–max + n (con ≤5 valores la mediana resiste un extremo; propuesta B). Detalle: cada valor con quote.
+- **Pipeline:** grafo de Links ordenado por `level` (molecular→organismo) y capa. Sin Links → la lista de capas sin flechas y el aviso «ningún paper del lote describe la cadena». Nunca se infiere un salto.
+
+### H4. Contraste con lo que esperaría un humano (clínico/investigador)
+
+**Prueba de papel — «hipotiroidismo» (enfermedad):** lo que un endocrino espera ver: TSH ↑ / T4 ↓ (sangre), LDL ↑ (sangre/metabólico), bradicardia (cardio→órganos), fatiga y lentitud cognitiva (nervioso), piel seca/mixedema (piel), cadena «T4 ↓ → receptor LDL ↓ → LDL ↑». Con el esquema: las cinco capas salen como Effects con dirección; TSH/T4 como `concentration`; la cadena solo si una revisión del lote la escribe. **Encaja.** Lo que falta: la bradicardia cae en «órganos» junto al hígado; `system=cardiovascular` lo preserva en la ficha.
+
+**Prueba de papel — «vitamina D» (gold set del repo):** las diez aristas del catálogo serían Links; seis no tienen cita → **no entrarían**. Esto no es un fallo del esquema: es el esquema diciendo la verdad sobre el catálogo (hoy el catálogo muestra cadenas que no están citadas).
+
+| Pregunta humana | ¿Responde? | Por qué |
+|---|---|---|
+| ¿Dónde golpea? | Sí | Effects + tabla de capas mecánica |
+| ¿Sube o baja? | Sí, y robusto | Dirección con quote; no depende de unidades |
+| ¿Cuánto? | Parcial | Solo slots cerrados; continuas mal extraídas por LLM; con 5 papers la cifra es orientativa |
+| ¿Por qué camino llega? | Parcial | Solo si el lote trae revisiones; ensayos casi nunca describen la cadena |
+| ¿Es causal o solo asociación? | Sí | `predicate=asociado` separado de aumenta/disminuye + `design` visible |
+| ¿Cuán fiable? | Parcial | design + n por fila; ranking de fuente ≠ calidad (D6) |
+| ¿Es exhaustivo? | No, y lo dice | lote 5 de N; «silencio ≠ ausencia» |
+
+**Veredicto:** el esquema es suficiente para la tarea (mapa de capas + dirección + cadena citada), no para magnitudes comparables ni para cobertura exhaustiva. Las dos mejoras de mayor rendimiento, ambas dentro de lo ya abierto:
+1. Lote **mixto**: parte de revisiones (`systematic[sb]`/review) para que haya Links, parte de primarios para Measures (C3, G10). Sin esto, el pipeline saldrá casi siempre vacío.
+2. **MeSH del propio paper** (viene en `efetch` de PubMed) como pista extra de sistema a nivel de paper; no sustituye la quote. OpenAlex no trae MeSH → en esa fuente solo tabla de alias.
+
+### H5. Qué queda para lock definitivo
+
+- OK del dueño a: tres tipos de fila, `system` fino, músculo→hueso o nervioso, mediana vs media.
+- Prueba E con este v1 sobre «TSH»/«hipotiroidismo» y sobre el gold set, midiendo: Effects por paper, Links por paper (revisión vs primario), Measures que pasan el gate, % `unmapped` (G14).
+- Verificar en red real (no accesible desde esta sesión: NCBI bloqueado por el proxy) `systematic[sb]` y la presencia de MeSH en `efetch`.
+
+Fuentes H: [COMET taxonomy](https://www.comet-initiative.org/Resources/OutcomeClassification) · [Dodd 2018](https://www.sciencedirect.com/science/article/pii/S0895435617305899) · [OECD AOP](https://www.oecd.org/en/topics/sub-issues/testing-of-chemicals/adverse-outcome-pathways.html) · [SemRep](https://pmc.ncbi.nlm.nih.gov/articles/PMC7222583/) · [SemMedDB](https://academic.oup.com/bioinformatics/article/28/23/3158/195282) · [LLM extracción RCT](https://pmc.ncbi.nlm.nih.gov/articles/PMC12448672/) · [MeSH 2022 por categoría](https://www.nlm.nih.gov/mesh/2022/download/NewHeadingsbycategoryforMeSHYear.pdf)
+
 ## Status
 
 - isolate: done
 - contraste externo 2026-09-21: sección G añadida (G1–G5 despejadas, G6–G9 abiertas, G10–G14 huecos nuevos)
 - ampliación 2026-09-21: ideas y huecos añadidos (secciones A–F). **Nada cerrado** por esta ampliación.
-- plan: draft, **schema_open**
+- esquema v1 2026-09-26: sección H (propuesta con evidencia y contraste); lock pendiente de OK del dueño + prueba E
+- plan: draft, schema v1 propuesto
 - apply: blocked hasta lock de slots + mapa de capas
 - verify: pending
