@@ -403,12 +403,36 @@ Músculo en `hueso`: MeSH lo agrupa como musculoesquelético; el catálogo actua
 
 Fuentes H: [COMET taxonomy](https://www.comet-initiative.org/Resources/OutcomeClassification) · [Dodd 2018](https://www.sciencedirect.com/science/article/pii/S0895435617305899) · [OECD AOP](https://www.oecd.org/en/topics/sub-issues/testing-of-chemicals/adverse-outcome-pathways.html) · [SemRep](https://pmc.ncbi.nlm.nih.gov/articles/PMC7222583/) · [SemMedDB](https://academic.oup.com/bioinformatics/article/28/23/3158/195282) · [LLM extracción RCT](https://pmc.ncbi.nlm.nih.gov/articles/PMC12448672/) · [MeSH 2022 por categoría](https://www.nlm.nih.gov/mesh/2022/download/NewHeadingsbycategoryforMeSHYear.pdf)
 
+## I. Cómo se determinan las capas si ningún paper las nombra (2026-09-26)
+
+Problema: los papers nombran dianas (TSH, LDL, densidad ósea, fatiga), no capas. Con un lote de 5 papers del tema en general no se puede decir en qué capas golpea: faltarían capas por azar del ranking.
+
+Precedentes que validan el método:
+- **Human symptoms–disease network** (Zhou et al., Nat Commun 2014): la co-indexación MeSH en PubMed de enfermedad × síntoma reproduce biología real (correlaciona con genes y proteínas compartidos). [externo]
+- **CTD**: millones de interacciones químico–fenotipo/enfermedad curadas a mano, una por PMID, con vocabularios controlados; así se construye conocimiento agregado de muchos papers. [externo]
+- **HPO**: su rama de anomalías fenotípicas (HP:0000118) se organiza por sistema de órganos (cardiovascular, piel, sangre, inmune, nervioso, ojo, oído, musculoesquelético, endocrino…); y sus anotaciones de enfermedad llevan PMID. [externo]
+- **AOP / Reactome**: las cadenas largas se ensamblan con saltos de papers distintos, cada salto con su cita. [externo]
+
+Método en 4 etapas:
+
+1. **Mapa (dónde hay literatura)** — sin LLM. Tema → descriptor MeSH. Para cada capa, un `esearch` con conteo: `tema[MeSH] AND (descriptores MeSH del sistema)[MeSH]`. Resultado: nº de papers por capa. Reproducible y barato (7 llamadas de conteo).
+2. **Confirmación (qué pasa ahí)** — con LLM + gate. Por cada capa con literatura, 2–3 papers top (priorizando revisiones y metaanálisis) → filas Effect/Measure/Link de la sección H. La diana se normaliza a MeSH/HPO y **la capa sale de la ontología**, no del LLM.
+3. **Pipeline** — los Links de todos los papers se unen por dianas normalizadas iguales. Una cadena de 2+ papers se etiqueta «cadena ensamblada», cada salto con su cita; nunca se afirma causalidad transitiva.
+4. **Validación contra referencia externa** — enfermedades: anotaciones HPO agrupadas por sistema; químicos/vitaminas/fármacos: CTD. Mide acuerdo de capas antes de exponer a usuarios.
+
+Campo nuevo obligatorio en Effect: `role` = `actua_sobre` (X cambia la diana) | `alterado_por` (la diana cambia X) | `origen` (X se produce ahí) | `marcador` (X se mide ahí). Sin esto, «vitamina D + piel» se leería como efecto cuando es síntesis.
+
+Estado de capa en modo live: **confirmada** (≥1 Effect citado) · **solo literatura** (conteo > 0 sin fila extraída) · **sin literatura** (conteo 0).
+
+Límites: el conteo mide cuánto se ha estudiado, no cuánto afecta (sesgo de popularidad); co-indexación ≠ efecto (por eso la etapa 2); MeSH no existe en OpenAlex ni en papers recientes sin indexar.
+
 ## Status
 
 - isolate: done
 - contraste externo 2026-09-21: sección G añadida (G1–G5 despejadas, G6–G9 abiertas, G10–G14 huecos nuevos)
 - ampliación 2026-09-21: ideas y huecos añadidos (secciones A–F). **Nada cerrado** por esta ampliación.
 - esquema v1 2026-09-26: sección H (propuesta con evidencia y contraste); lock pendiente de OK del dueño + prueba E
+- método de capas 2026-09-26: sección I (mapa MeSH → confirmación → pipeline → validación HPO/CTD)
 - plan: draft, schema v1 propuesto
 - apply: blocked hasta lock de slots + mapa de capas
 - verify: pending
