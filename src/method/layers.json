@@ -1,0 +1,97 @@
+{
+  "version": "1",
+  "decision": "D-capas",
+  "layers": [
+    {
+      "id": "sangre",
+      "name": "Sangre",
+      "hue": 6,
+      "mesh": ["Blood", "Blood Cells", "Hematologic Diseases"],
+      "aliases": ["blood", "serum", "plasma", "hemoglobin", "haemoglobin", "erythrocyte", "red blood cell", "red cell", "platelet", "anemia", "anaemia", "hematocrit", "haematocrit", "coagulation", "hematologic", "haematologic", "circulating"]
+    },
+    {
+      "id": "inmune",
+      "name": "Inmune y linfático",
+      "hue": 150,
+      "mesh": ["Immune System", "Immune System Diseases", "Lymphatic System", "Lymphatic Diseases"],
+      "aliases": ["immune", "immunity", "lymph", "lymphocyte", "t cell", "t-cell", "b cell", "b-cell", "macrophage", "neutrophil", "leukocyte", "antibod", "cytokine", "interleukin", "inflammat", "spleen", "thymus", "autoimmun", "infection"]
+    },
+    {
+      "id": "cardiovascular",
+      "name": "Cardiovascular",
+      "hue": 355,
+      "mesh": ["Cardiovascular System", "Cardiovascular Diseases"],
+      "aliases": ["heart", "cardiac", "cardio", "myocard", "coronary", "arter", "vascular", "vessel", "endotheli", "blood pressure", "hypertension", "heart rate", "bradycardia", "tachycardia", "atherosclero", "stroke"]
+    },
+    {
+      "id": "respiratorio",
+      "name": "Respiratorio",
+      "hue": 190,
+      "mesh": ["Respiratory System", "Respiratory Tract Diseases"],
+      "aliases": ["lung", "pulmonary", "respirat", "airway", "bronch", "asthma", "alveol", "breathing", "ventilat"]
+    },
+    {
+      "id": "digestivo",
+      "name": "Digestivo",
+      "hue": 30,
+      "mesh": ["Digestive System", "Digestive System Diseases"],
+      "aliases": ["liver", "hepat", "gut", "intestin", "bowel", "colon", "gastr", "stomach", "digest", "pancrea", "biliary", "gallbladder", "esophag", "oesophag", "microbiota"]
+    },
+    {
+      "id": "urinario",
+      "name": "Urinario",
+      "hue": 55,
+      "mesh": ["Urinary Tract", "Urologic Diseases"],
+      "aliases": ["kidney", "renal", "urin", "bladder", "nephr", "glomerul", "ureter"]
+    },
+    {
+      "id": "reproductor",
+      "name": "Reproductor",
+      "hue": 310,
+      "mesh": ["Genitalia", "Genital Diseases", "Genital Diseases, Female", "Genital Diseases, Male"],
+      "aliases": ["ovar", "uter", "testi", "sperm", "fertil", "menstru", "pregnan", "placent", "prostat", "erectile", "reproduct", "endometri", "vagin", "semen"]
+    },
+    {
+      "id": "endocrino",
+      "name": "Endocrino",
+      "hue": 85,
+      "mesh": ["Endocrine System", "Endocrine System Diseases"],
+      "aliases": ["thyroid", "pituitar", "adrenal", "parathyroid", "hypothalam", "hormone", "endocrin", "insulin", "cortisol", "tsh", "thyroxine", "triiodothyronine", "pth", "glucocorticoid", "diabetes"]
+    },
+    {
+      "id": "nervioso",
+      "name": "Nervioso",
+      "hue": 265,
+      "mesh": ["Nervous System", "Nervous System Diseases", "Mental Disorders"],
+      "aliases": ["brain", "neur", "nerve", "cognit", "cerebr", "spinal", "depress", "anxiety", "mood", "sleep", "memory", "dementia", "psychiatr", "pain", "seizure"]
+    },
+    {
+      "id": "sentidos",
+      "name": "Sentidos",
+      "hue": 220,
+      "mesh": ["Sense Organs", "Eye Diseases", "Ear Diseases"],
+      "aliases": ["eye", "retina", "ocular", "visual", "vision", "cornea", "macula", "ear", "hearing", "auditory", "cochle", "tinnitus", "vestibul", "olfact", "smell", "taste"]
+    },
+    {
+      "id": "piel",
+      "name": "Piel",
+      "hue": 335,
+      "mesh": ["Integumentary System", "Skin Diseases"],
+      "aliases": ["skin", "cutaneous", "derma", "epiderm", "hair", "nail", "psoria", "eczema", "keratinocyte", "wound", "alopecia"]
+    },
+    {
+      "id": "hueso",
+      "name": "Hueso y articulaciones",
+      "hue": 45,
+      "mesh": ["Skeleton", "Bone Diseases", "Joint Diseases"],
+      "aliases": ["bone", "skelet", "osteo", "fracture", "joint", "cartilage", "bone mineral density", "bmd", "rickets", "arthrit", "spine"]
+    },
+    {
+      "id": "musculo",
+      "name": "Músculo",
+      "hue": 15,
+      "mesh": ["Muscles", "Muscular Diseases"],
+      "aliases": ["muscle", "muscular", "myopath", "sarcopen", "grip strength", "myalgia", "skeletal muscle", "myocyte"]
+    }
+  ]
+}

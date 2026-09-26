@@ -1,21 +1,15 @@
-// Forma ÚNICA de un paper, sea cual sea la fuente (PubMed, OpenAlex…).
-// Cada fuente entrega campos crudos a `makePaper`; los enlaces derivados
-// (PubMed / PMC / DOI) se calculan aquí y en ningún otro sitio.
+// Forma ÚNICA de un paper. Los enlaces derivados (PubMed / PMC / DOI) se
+// calculan aquí y en ningún otro sitio. Diseño y especie salen de los
+// metadatos de indexación (decisión D-metadatos), nunca de la IA.
 
-import { pubmedUrl } from './citations.js'
+import { SCHEMA } from '../method/method.js'
 
 export const BLOCKED_HOSTS = /sci-hub|annas-archive|libgen|librarygenesis/i
 
 export const normalizeDoi = (doi) => String(doi).replace(/^https?:\/\/(dx\.)?doi\.org\//i, '')
-
-export function pmcUrl(pmcid) {
-  const id = String(pmcid).replace(/^PMC/i, '')
-  return `https://www.ncbi.nlm.nih.gov/pmc/articles/PMC${id}/`
-}
-
-export function doiUrl(doi) {
-  return `https://doi.org/${normalizeDoi(doi)}`
-}
+export const pubmedUrl = (pmid) => `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`
+export const pmcUrl = (pmcid) => `https://pmc.ncbi.nlm.nih.gov/articles/PMC${String(pmcid).replace(/^PMC/i, '')}/`
+export const doiUrl = (doi) => `https://doi.org/${normalizeDoi(doi)}`
 
 /** Lista de autores legible: primeros `max` y "et al." si hay más. */
 export function authorList(names, max = 6) {
@@ -26,26 +20,21 @@ export function authorList(names, max = 6) {
 /** URL de OA solo si es legal (nunca Sci-Hub y similares). */
 export const legalUrl = (url) => (url && !BLOCKED_HOSTS.test(url) ? url : null)
 
-/**
- * P: campos crudos de una fuente.
- * Q: paper con la forma que consume la UI. `oaChecked` = la fuente ya
- *    resolvió el acceso abierto (no hace falta consultarlo aparte).
- */
-export function makePaper({
-  pmid = null,
-  pmcid = null,
-  doi = null,
-  title,
-  authors = '',
-  journal = null,
-  year = null,
-  pubTypes = [],
-  abstract = '',
-  isOpenAccess = false,
-  citedByCount = 0,
-  oaUrl = null,
-  oaChecked = false,
-}) {
+/** Diseño por tipo de publicación de PubMed (primera coincidencia de la tabla). */
+export function designOf(pubTypes) {
+  for (const [pubType, design] of SCHEMA.designFromPubType) if (pubTypes.includes(pubType)) return design
+  return 'primario_sin_tipo'
+}
+
+/** Especie por etiquetas MeSH; varias a la vez se listan todas. */
+export function speciesOf(mesh) {
+  const found = Object.entries(SCHEMA.speciesFromMesh)
+    .filter(([heading]) => mesh.includes(heading))
+    .map(([, label]) => label)
+  return found.length ? found : ['no_indicada']
+}
+
+export function makePaper({ pmid = null, pmcid = null, doi = null, title, authors = '', journal = null, year = null, pubTypes = [], mesh = [], abstract = '' }) {
   const pmc = pmcid ? String(pmcid).replace(/^PMC/i, '') : null
   const cleanDoi = doi ? normalizeDoi(doi) : null
   return {
@@ -57,16 +46,18 @@ export function makePaper({
     journal,
     year,
     pubTypes,
+    mesh,
+    design: designOf(pubTypes),
+    species: speciesOf(mesh),
     abstract,
-    isOpenAccess: Boolean(isOpenAccess),
-    citedByCount: Number(citedByCount) || 0,
-    pubmed: pmid ? pubmedUrl(String(pmid)) : null,
-    pmc: pmc ? pmcUrl(pmc) : null,
-    doiHref: cleanDoi ? doiUrl(cleanDoi) : null,
-    oaUrl: legalUrl(oaUrl),
-    oaChecked,
+    links: {
+      pubmed: pmid ? pubmedUrl(String(pmid)) : null,
+      pmc: pmc ? pmcUrl(pmc) : null,
+      doi: cleanDoi ? doiUrl(cleanDoi) : null,
+      oa: null,
+    },
   }
 }
 
-/** Un paper solo entra si tiene un identificador oficial. */
-export const hasOfficialId = (p) => Boolean(p.pmid || p.pmcid || p.doi)
+/** Texto que lee el extractor y contra el que se comprueban las frases. */
+export const paperText = (p) => [p.title, p.abstract].filter(Boolean).join('\n')

@@ -1,0 +1,9 @@
+# Servicio extractor de Human Flow (decisión D-extractor).
+# La clave va como secreto:  npx wrangler secret put ANTHROPIC_API_KEY
+# ALLOWED_ORIGIN = origen de la app (p. ej. https://tu-dominio.pages.dev).
+name = "humanflow-extractor"
+main = "extractor.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+ALLOWED_ORIGIN = "*"

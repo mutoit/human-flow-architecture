@@ -1,18 +1,26 @@
-// Fuente PubMed vía NCBI E-utilities (CORS abierto: se llama directo desde
-// el navegador, sin proxy ni regla de servidor).
-//   1. esearch  → PMIDs + total          (JSON)
-//   2. esummary → metadatos              (JSON)  ← camino esencial
-//   3. efetch   → abstracts              (XML)   ← mejora "best effort"
-// Si el paso 3 falla, los papers se devuelven igual, sin abstract (la UI ya
-// ofrece abrirlo en PubMed): un fallo de abstracts nunca tumba la búsqueda.
+// PubMed vía NCBI E-utilities (CORS abierto: se llama directo desde el
+// navegador). Tres operaciones, todas con el límite de NCBI sin clave
+// (3 peticiones/s) respetado en cola:
+//   count(term)            → { count, translation, notFound[] }
+//   ids(term, retmax)      → PMIDs en orden de relevancia (Best Match)
+//   records(pmids)         → registros con abstract, tipos de publicación y MeSH
 
-import { authorList, hasOfficialId, makePaper } from '../paper.js'
 import { fetchJson, fetchText } from '../resilientFetch.js'
+import { authorList, makePaper } from '../paper.js'
 
 const BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils'
 const TOOL = 'humanflow'
+const MIN_GAP_MS = 350
 
 const url = (endpoint, params) => `${BASE}/${endpoint}.fcgi?${new URLSearchParams({ ...params, tool: TOOL })}`
+
+// Cola global: una petición cada MIN_GAP_MS, en orden de llegada.
+let queue = Promise.resolve()
+function throttled(fn) {
+  const run = queue.then(fn)
+  queue = run.catch(() => {}).then(() => new Promise((r) => setTimeout(r, MIN_GAP_MS)))
+  return run
+}
 
 /** NCBI a veces contesta 200 con `ERROR` en el cuerpo. */
 function assertNoApiError(body, where) {
@@ -20,77 +28,69 @@ function assertNoApiError(body, where) {
   if (message) throw new Error(`PubMed (${where}): ${message}`)
 }
 
-/**
- * P: XML de efetch. Q: Map pmid → abstract (con etiquetas si el resumen es estructurado).
- * Selectores exactos: el XML repite <PMID> dentro de las referencias citadas, así
- * que solo se lee el de MedlineCitation de cada PubmedArticle.
- */
-function parseAbstracts(xmlText) {
-  const out = new Map()
-  if (typeof DOMParser === 'undefined') return out
-  const doc = new DOMParser().parseFromString(xmlText, 'text/xml')
-  if (doc.querySelector('parsererror')) return out
-
-  for (const article of doc.querySelectorAll('PubmedArticle')) {
-    const pmid = article.querySelector('MedlineCitation > PMID')?.textContent?.trim()
-    const parts = [...article.querySelectorAll('MedlineCitation > Article > Abstract > AbstractText')]
-      .map((el) => {
-        const text = el.textContent.replace(/\s+/g, ' ').trim()
-        const label = el.getAttribute('Label')
-        return label && text ? `${label}: ${text}` : text
-      })
-      .filter(Boolean)
-    if (pmid && parts.length) out.set(pmid, parts.join(' '))
-  }
-  return out
+async function esearch(term, retmax) {
+  const body = await throttled(() =>
+    fetchJson('PubMed', url('esearch', { db: 'pubmed', term, retmode: 'json', retmax: String(retmax), sort: 'relevance' })),
+  )
+  assertNoApiError(body, 'búsqueda')
+  return body.esearchresult ?? {}
 }
 
-async function fetchAbstracts(ids) {
-  try {
-    const xml = await fetchText('PubMed', url('efetch', { db: 'pubmed', id: ids.join(','), retmode: 'xml' }))
-    return parseAbstracts(xml)
-  } catch {
-    return new Map()
+export async function count(term) {
+  const r = await esearch(term, 0)
+  return {
+    count: Number(r.count) || 0,
+    translation: r.querytranslation ?? null,
+    notFound: [...(r.errorlist?.phrasesnotfound ?? []), ...(r.errorlist?.fieldsnotfound ?? [])],
   }
 }
 
-const idOf = (record, type) => record.articleids?.find((a) => a.idtype === type)?.value ?? null
+export async function ids(term, retmax) {
+  const r = await esearch(term, retmax)
+  return r.idlist ?? []
+}
 
-function toPaper(record, abstracts) {
-  const year = /^\d{4}/.exec(record.pubdate ?? '')?.[0] ?? null
+const text = (el) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim()
+
+function parseArticle(article) {
+  const citation = article.querySelector('MedlineCitation')
+  const pmid = text(citation?.querySelector(':scope > PMID'))
+  const art = citation?.querySelector(':scope > Article')
+  const abstract = [...(art?.querySelectorAll(':scope > Abstract > AbstractText') ?? [])]
+    .map((el) => {
+      const t = text(el)
+      const label = el.getAttribute('Label')
+      return label && t ? `${label}: ${t}` : t
+    })
+    .filter(Boolean)
+    .join(' ')
+  const authors = [...(art?.querySelectorAll(':scope > AuthorList > Author') ?? [])].map((a) =>
+    [text(a.querySelector('LastName')), text(a.querySelector('Initials'))].filter(Boolean).join(' ') || text(a.querySelector('CollectiveName')),
+  )
+  const idOf = (type) => text(article.querySelector(`PubmedData > ArticleIdList > ArticleId[IdType="${type}"]`)) || null
+  const year =
+    text(art?.querySelector('Journal > JournalIssue > PubDate > Year')) ||
+    /\d{4}/.exec(text(art?.querySelector('Journal > JournalIssue > PubDate > MedlineDate')))?.[0] ||
+    null
+
   return makePaper({
-    pmid: record.uid,
-    pmcid: idOf(record, 'pmc'),
-    doi: idOf(record, 'doi'),
-    title: record.title,
-    authors: authorList((record.authors ?? []).map((a) => a.name)),
-    journal: record.fulljournalname || record.source || null,
+    pmid,
+    pmcid: idOf('pmc'),
+    doi: idOf('doi'),
+    title: text(art?.querySelector(':scope > ArticleTitle')),
+    authors: authorList(authors),
+    journal: text(art?.querySelector('Journal > Title')) || null,
     year,
-    pubTypes: record.pubtype ?? [],
-    abstract: abstracts.get(String(record.uid)) ?? '',
-    citedByCount: record.pmcrefcount,
+    pubTypes: [...(art?.querySelectorAll('PublicationTypeList > PublicationType') ?? [])].map(text),
+    mesh: [...(citation?.querySelectorAll('MeshHeadingList > MeshHeading > DescriptorName') ?? [])].map(text),
+    abstract,
   })
 }
 
-export const pubmedSource = {
-  name: 'PubMed',
-
-  async search(query, { pageSize }) {
-    const found = await fetchJson('PubMed', url('esearch', { db: 'pubmed', term: query, retmode: 'json', retmax: String(pageSize) }))
-    assertNoApiError(found, 'búsqueda')
-    const ids = found.esearchresult?.idlist ?? []
-    const hitCount = Number(found.esearchresult?.count) || 0
-    if (ids.length === 0) return { hitCount, papers: [] }
-
-    const summary = await fetchJson('PubMed', url('esummary', { db: 'pubmed', id: ids.join(','), retmode: 'json' }))
-    assertNoApiError(summary, 'resumen')
-    const abstracts = await fetchAbstracts(ids)
-
-    const papers = ids
-      .map((id) => summary.result?.[id])
-      .filter(Boolean)
-      .map((record) => toPaper(record, abstracts))
-      .filter(hasOfficialId)
-    return { hitCount, papers }
-  },
+export async function records(pmids) {
+  if (pmids.length === 0) return []
+  const xml = await throttled(() => fetchText('PubMed', url('efetch', { db: 'pubmed', id: pmids.join(','), retmode: 'xml' })))
+  const doc = new DOMParser().parseFromString(xml, 'text/xml')
+  if (doc.querySelector('parsererror')) throw new Error('PubMed devolvió un XML ilegible.')
+  return [...doc.querySelectorAll('PubmedArticle')].map(parseArticle).filter((p) => p.pmid)
 }

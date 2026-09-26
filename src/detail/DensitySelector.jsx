@@ -1,6 +1,4 @@
-// Selector de tamaño de interfaz (Rev5, feedback del usuario) — S/M/L
-// fija html[data-density], que a su vez escala todo styles.css vía rem
-// (ver Punto 2 del plan). Mismo patrón visual que ScenarioSelector.
+// Selector de tamaño de interfaz S/M/L: fija html[data-density], que escala todo vía rem.
 
 const OPTIONS = [
   { id: 's', label: 'S' },

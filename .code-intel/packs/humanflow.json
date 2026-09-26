@@ -1,34 +1,181 @@
 {
   "id": "humanflow",
-  "description": "HumanFlow — visor de flujo biofisico (motor de propagacion + capas + panel de detalle)",
+  "description": "Human Flow — búsqueda de un tema en PubMed y su recorrido por 13 capas del cuerpo, con cada dato citado",
   "pathPrefix": "src",
-  "pathPrefixes": ["src/engine", "src/body", "src/layers", "src/detail", "src/data"],
+  "pathPrefixes": [
+    "src/method",
+    "src/pipeline",
+    "src/engine",
+    "src/export",
+    "src/detail",
+    "src/layers",
+    "src/search",
+    "worker"
+  ],
   "aliases": [
-    { "keys": ["motor", "propagacion", "propagar", "engine"], "to": ["propagate", "buildGraph", "topoSort", "reachableFrom", "statusFor", "resolveModulation", "nodeConnections", "pathFromPrimary"] },
-    { "keys": ["cadena causal", "origen", "por que"], "to": ["pathFromPrimary"] },
-    { "keys": ["fuentes", "citas", "referencias"], "to": ["collectReferences", "SourcesTab", "pubmedUrl"] },
-    { "keys": ["estado visual", "reach", "opacidad"], "to": ["reachFromStatus", "visualState", "LAYER_OPACITY"] },
-    { "keys": ["ficha", "detalle nodo"], "to": ["DetailCard"] },
-    { "keys": ["lista de capas", "rail"], "to": ["LayerList"] },
-    { "keys": ["subcapas", "grafo por subcapas", "cascada"], "to": ["LayerCascade"] },
-    { "keys": ["silueta", "muñeco", "cuerpo"], "to": ["BodySilhouette", "HOTSPOTS", "TAGS"] },
-    { "keys": ["escenario", "severidad"], "to": ["ScenarioSelector"] },
-    { "keys": ["vitales", "labs"], "to": ["VitalsBar"] },
-    { "keys": ["import", "cargar json", "dataset"], "to": ["ImportControl", "validateDataset"] },
-    { "keys": ["app", "raiz", "entrada"], "to": ["App"] }
+    {
+      "keys": [
+        "capas",
+        "layers",
+        "mesh"
+      ],
+      "to": [
+        "LAYERS",
+        "layerMeshQuery",
+        "layerOf"
+      ]
+    },
+    {
+      "keys": [
+        "decisiones",
+        "metodo"
+      ],
+      "to": [
+        "DECISIONS",
+        "METHOD_VERSION"
+      ]
+    },
+    {
+      "keys": [
+        "esquema",
+        "slots",
+        "huecos"
+      ],
+      "to": [
+        "SCHEMA",
+        "slotsFor"
+      ]
+    },
+    {
+      "keys": [
+        "recorrido",
+        "pipeline",
+        "buscar"
+      ],
+      "to": [
+        "runTopic"
+      ]
+    },
+    {
+      "keys": [
+        "control",
+        "gate",
+        "validar"
+      ],
+      "to": [
+        "gateRows",
+        "resolveLayer"
+      ]
+    },
+    {
+      "keys": [
+        "dianas",
+        "direccion",
+        "cifras",
+        "mediana"
+      ],
+      "to": [
+        "targetsOf",
+        "summarizeMeasures",
+        "layerSummaries",
+        "layerState"
+      ]
+    },
+    {
+      "keys": [
+        "cadena",
+        "eslabon"
+      ],
+      "to": [
+        "chainsOf",
+        "hopsOf"
+      ]
+    },
+    {
+      "keys": [
+        "grafo"
+      ],
+      "to": [
+        "graphOf",
+        "NeuralGraph"
+      ]
+    },
+    {
+      "keys": [
+        "dossier",
+        "importar"
+      ],
+      "to": [
+        "emptyDossier",
+        "importDossier"
+      ]
+    },
+    {
+      "keys": [
+        "fuentes",
+        "exportar",
+        "informe"
+      ],
+      "to": [
+        "dossierMarkdown",
+        "openReport",
+        "FuentesMenu"
+      ]
+    },
+    {
+      "keys": [
+        "pubmed",
+        "esearch",
+        "efetch"
+      ],
+      "to": [
+        "count",
+        "ids",
+        "records"
+      ]
+    },
+    {
+      "keys": [
+        "extractor",
+        "ia",
+        "worker"
+      ],
+      "to": [
+        "extractRows",
+        "normalizeTopic"
+      ]
+    },
+    {
+      "keys": [
+        "app",
+        "raiz"
+      ],
+      "to": [
+        "App"
+      ]
+    }
   ],
   "pathBoosts": [
-    { "path": "src/engine/propagation.js", "boost": 2 },
-    { "path": "src/App.jsx", "boost": 1 }
+    {
+      "path": "src/pipeline/run.js",
+      "boost": 2
+    },
+    {
+      "path": "src/pipeline/gate.js",
+      "boost": 2
+    },
+    {
+      "path": "src/App.jsx",
+      "boost": 1
+    }
   ],
   "methodReminder": [
-    "HumanFlow (Rev4): el motor vive en src/engine/propagation.js (buildGraph -> topoSort -> propagate -> pathFromPrimary). No dupliques logica de propagacion en componentes React.",
-    "Dos vistas fusionadas lado a lado (spec Rev4 §9): src/body/BodySilhouette.jsx (muñeco) y src/layers/LayerCascade.jsx (subcapas), sincronizadas via activeNodeId en App.jsx. src/layers/LayerList.jsx es la lista compartida.",
-    "src/detail/DetailCard.jsx es la ficha unica para las 3 vistas: incluye la cadena causal (pathFromPrimary) y las referencias del nodo. src/detail/SourcesTab.jsx agrega TODAS las citas del dataset (engine/citations.js collectReferences).",
-    "El dataset vive en src/data/vitamin-d.json (taxonomia anatomica 7 capas: sangre/organos/hueso/linfatico/piel/nervioso/sentidos) y se valida en data/ImportControl.jsx antes de entrar al motor.",
-    "Rev1 (src/graph/*) fue eliminado por completo — no existe, no lo busques ni lo recrees."
+    "Lee docs/CORE.md antes de tocar nada: es la fuente de verdad.",
+    "Las listas de capas, huecos, roles, predicados y decisiones viven SOLO en src/method/*.json; el código las lee de src/method/method.js.",
+    "Ninguna fila entra sin pasar src/pipeline/gate.js (frase literal, números en la frase, capa confirmada por léxico).",
+    "Toda decisión de método nueva se añade a src/method/decisions.json con opciones, porqué y evidencia: se exporta con cada dossier."
   ],
   "flowReminder": [
-    "dataset (src/data) -> engine/propagation.js -> App.jsx (estado: nodeStates/nodeReach/layerReach) -> body/BodySilhouette.jsx + layers/LayerCascade.jsx + layers/LayerList.jsx -> detail/DetailCard.jsx al seleccionar nodo -> detail/SourcesTab.jsx (global)"
+    "tema → run.js (consulta → mapa MeSH → selección → lectura → extracción + gate → OA) → dossier → aggregate/chain/graph → UI y exportación"
   ]
 }

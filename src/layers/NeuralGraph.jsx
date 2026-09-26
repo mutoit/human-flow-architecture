@@ -1,37 +1,12 @@
-// Puerto de GROK/alcance-d-neural/app.js — red tipo conectoma en canvas,
-// curvas orgánicas, partículas por sinapsis activa, glow. Diferencia
-// deliberada con el original (Rev10): GROK fija `x,y` a mano por nodo
-// para el dataset de vitamina D exacto — aquí el layout se CALCULA
-// (anillos concéntricos por capa, nodos repartidos por ángulo dentro de
-// su anillo), así funciona igual con cualquier dataset (spec Rev9,
-// "cualquier flow"), no solo con 24 nodos concretos.
-//
-// Sin botón de "reproducir" ni animación de entrada (Rev8 quitó "Ver de
-// nuevo" a propósito) — las partículas fluyen de forma ambiental
-// continua por las aristas activas, sin control manual.
-//
-// Zoom/pan/autofit (Rev11-13): rueda = zoom hacia el cursor; arrastrar =
-// mover; "Autofit" ajusta al contenido real (Rev13). Chips de capa
-// arriba (filtro) + leyenda de color abajo (Rev12).
-//
-// Render "organismo de cristal" (Rev14, puerto de
-// GROK/alcance-d-cascade-ui/app.js): nodos con aura + membrana
-// translúcida + cavidad + orgánulos animados + núcleo con bloom + borde
-// Fresnel + brillo especular, en vez de círculos planos — mismo
-// principio que el resto del puerto: se toma el ESTILO de render, no
-// las coordenadas fijas de GROK (el layout sigue siendo `computeLayout`,
-// genérico).
-//
-// Rev16: el color deja de venir solo del estado (on/soft/off) — cada
-// capa anatómica tiene su propio matiz (`LAYER_HUE`, catálogo cerrado
-// de 7 `anatomyId`). El radio de nodo refleja el state del lookup de
-// findings (no un ratio calculado). 4º estado visual: `split`
-// (contradictorio). `computeLayout` reparte cada capa en su propio
-// sector angular — layout calculado, no coordenadas fijas.
+// Grafo del recorrido: el tema en el centro, cada diana validada en el
+// sector de su capa (matiz = capa, src/method/layers.json) y cada salto
+// citado como arista (pipeline/chain.js). El tamaño del nodo refleja
+// cuántos papers la respaldan (cantidad de evidencia, no gravedad).
+// Estados visuales: on (efecto citado) · split (direcciones opuestas).
+// Layout calculado (sectores por capa, anillos), zoom/pan/autofit y render
+// «organismo de cristal» heredados del visor anterior.
 
 import { useEffect, useRef, useState } from 'react'
-import { DEFAULT_HUE, REACH_META, SPLIT_HUE, hueOfAnatomy } from '../engine/reachMeta.js'
-import ReachLegend from './ReachLegend.jsx'
 
 const W = 1000
 const H = 720
@@ -41,9 +16,9 @@ const MAX_RADIUS = 300
 const ZOOM_MIN = 0.6
 const ZOOM_MAX = 4
 
-// Derivadas de la fuente única (engine/reachMeta.js) — no se redefinen aquí.
-const REACH_TO_STATE = Object.fromEntries(Object.entries(REACH_META).map(([k, m]) => [k, m.state]))
-const STATE_LABEL = Object.fromEntries(Object.values(REACH_META).map((m) => [m.state, m.label]))
+const DEFAULT_HUE = 40
+const SPLIT_HUE = 280
+const STATE_LABEL = { on: 'Efecto citado', split: 'Direcciones opuestas', soft: 'Solo literatura', off: '' }
 
 function drawStateOf(reachState) {
   return reachState === 'split' ? 'on' : reachState
@@ -65,8 +40,8 @@ function hsla(h, s, l, a) {
  * capa (distancia al centro) + banda dentro del sector si hay muchos
  * nodos. Nodos primarios van al centro, sea cual sea su capa. Radio de
  * cada nodo refleja el state del lookup (1 = sin hallazgo). */
-function computeLayout(layers, nodes, severityById = {}) {
-  const sortedLayers = [...layers].sort((a, b) => a.id - b.id)
+function computeLayout(layers, nodes, weightById = {}) {
+  const sortedLayers = layers
   const nLayers = Math.max(1, sortedLayers.length)
   const ringGap = nLayers > 1 ? (MAX_RADIUS - BASE_RADIUS) / (nLayers - 1) : 0
   const ringByLayer = new Map(sortedLayers.map((l, i) => [l.id, BASE_RADIUS + i * ringGap]))
@@ -82,8 +57,7 @@ function computeLayout(layers, nodes, severityById = {}) {
   }
 
   function severityOf(node) {
-    const ratio = severityById[node.id]
-    return ratio == null ? 0 : Math.min(1, Math.abs(ratio - 1))
+    return Math.min(1, Math.max(0, weightById[node.id] ?? 0))
   }
 
   const positions = new Map()
@@ -137,7 +111,7 @@ function contentBoundsOf(positions, labelWidths) {
   return { minX, minY, maxX, maxY }
 }
 
-/** Rev16 (fix): `computeLayout` reparte los nodos en un mundo casi
+/** `computeLayout` reparte los nodos en un mundo casi
  * cuadrado (sectores angulares) — en un panel MUY ancho eso deja aire
  * a los lados aunque el "fit al contenido" (autofit) esté bien hecho,
  * porque la altura manda y sobra ancho. Se estira (no se recorta) el
@@ -194,7 +168,8 @@ function pointOnCurve(a, b, cx, cy, t) {
   return { x: u * u * a.x + 2 * u * t * cx + t * t * b.x, y: u * u * a.y + 2 * u * t * cy + t * t * b.y }
 }
 
-export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, onSelectNode }) {
+export default function NeuralGraph({ graph, onSelectNode }) {
+  const { layers } = graph
   const canvasRef = useRef(null)
   const chipsRef = useRef(null)
   const legendRef = useRef(null)
@@ -219,25 +194,17 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
   }, [focusLayerId])
 
   useEffect(() => {
-    const severityById = {}
-    for (const node of dataset.nodes) {
-      const s = nodeStates?.[node.id]?.state
-      severityById[node.id] = s === 'critical' ? 2 : s === 'contradictorio' ? 1.7 : s === 'alert' ? 1.35 : s === 'normal' ? 1.15 : 1
-    }
-    const positions = computeLayout(layers, dataset.nodes, severityById)
+    const positions = computeLayout(layers, graph.nodes, graph.weight)
 
-    // Matiz por nodo (Rev16) — de la capa a la que pertenece (anatomyId).
-    const layerById = new Map(dataset.layers.map((l) => [l.id, l]))
+    // Matiz por nodo: el de su capa.
+    const layerById = new Map(layers.map((l) => [l.id, l]))
     const nodeHue = new Map()
-    for (const node of dataset.nodes) {
-      const anatomy = layerById.get(node.layer)?.anatomyId
-      nodeHue.set(node.id, hueOfAnatomy(anatomy))
-    }
+    for (const node of graph.nodes) nodeHue.set(node.id, layerById.get(node.layer)?.hue ?? DEFAULT_HUE)
 
     const particles = []
-    dataset.edges.forEach((edge, i) => {
-      const stateA = REACH_TO_STATE[nodeReach[edge.from] ?? 'spared']
-      const stateB = REACH_TO_STATE[nodeReach[edge.to] ?? 'spared']
+    graph.edges.forEach((edge, i) => {
+      const stateA = (graph.nodeState[edge.from] ?? 'off')
+      const stateB = (graph.nodeState[edge.to] ?? 'off')
       if (stateA === 'off' || stateB === 'off') return
       const strength = isHot(stateA) && isHot(stateB) ? 1 : 0.45
       const n = 2 + Math.round(strength * 3)
@@ -252,7 +219,7 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
     stateRef.current.rawPositions = positions
     stateRef.current.nodeHue = nodeHue
     stateRef.current.particles = particles
-  }, [layers, dataset, nodeReach, nodeStates])
+  }, [layers, graph])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -262,7 +229,7 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
     let time = 0
     const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    // Autofit real (Rev13/17): ajusta al CONTENIDO (nodos + etiquetas con su
+    // Autofit real: ajusta al CONTENIDO (nodos + etiquetas con su
     // ancho medido) dentro del ÁREA LIBRE del lienzo — la que no tapan los
     // chips de capa (arriba), el botón Autofit y la leyenda (abajo). Se
     // mide del DOM, no hay márgenes mágicos: si la leyenda hace wrap y
@@ -272,8 +239,8 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
 
     function labelWidths() {
       const widths = new Map()
-      for (const node of dataset.nodes) {
-        if ((nodeReach[node.id] ?? 'spared') === 'spared') continue // 'off' no pinta etiqueta
+      for (const node of graph.nodes) {
+        if ((graph.nodeState[node.id] ?? 'off') === 'off') continue // 'off' no pinta etiqueta
         ctx.font = `600 ${node.isPrimary ? 14 : 12}px "IBM Plex Sans", sans-serif`
         widths.set(node.id, ctx.measureText(node.name).width)
       }
@@ -402,8 +369,8 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
         tip.hidden = true
         return
       }
-      const state = REACH_TO_STATE[nodeReach[node.id] ?? 'spared']
-      const layer = dataset.layers.find((l) => l.id === node.layer)
+      const state = (graph.nodeState[node.id] ?? 'off')
+      const layer = layers.find((l) => l.id === node.layer)
       tip.hidden = false
       tip.innerHTML = `<div class="neural-graph__tip-title">${node.name}</div><div class="neural-graph__tip-meta">${layer?.name ?? ''} · ${STATE_LABEL[state]}</div>`
       const px = ev.clientX - rect.left + 14
@@ -434,7 +401,7 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
       const { x, y, rect } = toGraph(clientX, clientY)
       let found = null
       let best = Infinity
-      for (const node of dataset.nodes) {
+      for (const node of graph.nodes) {
         const pos = stateRef.current.positions.get(node.id)
         if (!pos) continue
         const d = Math.hypot(pos.x - x, pos.y - y)
@@ -452,10 +419,10 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
       ctx.setTransform(s, 0, 0, s, view.panX, view.panY)
       ctx.clearRect(-view.panX / s, -view.panY / s, canvas.width / s, canvas.height / s)
 
-      const nodeById = new Map(dataset.nodes.map((n) => [n.id, n]))
+      const nodeById = new Map(graph.nodes.map((n) => [n.id, n]))
 
       // fondo ambiental: glow tenue tras el/los nodo(s) primario(s) + polvo
-      for (const pn of dataset.nodes) {
+      for (const pn of graph.nodes) {
         if (!pn.isPrimary) continue
         const p = positions.get(pn.id)
         if (!p) continue
@@ -480,18 +447,18 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
       }
       ctx.globalAlpha = 1
 
-      // aristas — teñidas con el matiz de la capa destino (Rev16): el
+      // aristas — teñidas con el matiz de la capa destino : el
       // color ya no es solo "on/soft" blanco/naranja universal, lleva la
       // identidad de a qué capa está entrando el efecto.
-      dataset.edges.forEach((edge) => {
+      graph.edges.forEach((edge) => {
         const a = positions.get(edge.from)
         const b = positions.get(edge.to)
         if (!a || !b) return
         const nodeA = nodeById.get(edge.from)
         const nodeB = nodeById.get(edge.to)
         const dim = focus && nodeA?.layer !== focus && nodeB?.layer !== focus
-        const stateA = REACH_TO_STATE[nodeReach[edge.from] ?? 'spared']
-        const stateB = REACH_TO_STATE[nodeReach[edge.to] ?? 'spared']
+        const stateA = (graph.nodeState[edge.from] ?? 'off')
+        const stateB = (graph.nodeState[edge.to] ?? 'off')
         const active = stateA !== 'off' && stateB !== 'off'
         const isOn = isHot(stateA) && isHot(stateB)
         const hue = nodeHue.get(edge.to) ?? DEFAULT_HUE
@@ -527,7 +494,7 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
       // partículas ambientales
       if (!reduceMotion) {
         particles.forEach((p) => {
-          const edge = dataset.edges[p.edge]
+          const edge = graph.edges[p.edge]
           if (!edge) return
           const a = positions.get(edge.from)
           const b = positions.get(edge.to)
@@ -536,8 +503,8 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
           if (p.t > 1) p.t -= 1
           const { cx, cy } = curvePoints(a, b)
           const pt = pointOnCurve(a, b, cx, cy, p.t)
-          const stateA = REACH_TO_STATE[nodeReach[edge.from] ?? 'spared']
-          const stateB = REACH_TO_STATE[nodeReach[edge.to] ?? 'spared']
+          const stateA = (graph.nodeState[edge.from] ?? 'off')
+          const stateB = (graph.nodeState[edge.to] ?? 'off')
           const isOn = isHot(stateA) && isHot(stateB)
           const nodeA = nodeById.get(edge.from)
           const nodeB = nodeById.get(edge.to)
@@ -553,17 +520,17 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
       }
 
       // nodos — organismos de cristal (aura + membrana + núcleo + reflejo)
-      // Rev16: matiz por capa (`hue`, de nodeHue) en vez de una única
+      // Matiz por capa (`hue`, de nodeHue) en vez de una única
       // paleta universal — el estado sigue modulando brillo/saturación
       // (más vivo si "on", apagado/gris si "off"), pero el MATIZ ahora
       // dice de qué capa es el nodo (órganos ≠ hueso aunque compartan
       // estado). El núcleo (bloom central) se deja blanco-dorado
       // universal a propósito: es la señal cruzada de capas de "aquí
       // hay actividad", el resto de capas de render sí llevan el matiz.
-      dataset.nodes.forEach((node) => {
+      graph.nodes.forEach((node) => {
         const pos = positions.get(node.id)
         if (!pos) return
-        const reachState = REACH_TO_STATE[nodeReach[node.id] ?? 'spared']
+        const reachState = (graph.nodeState[node.id] ?? 'off')
         const state = drawStateOf(reachState)
         const isSel = node.id === selectedId
         const isHov = node.id === hoverId
@@ -759,7 +726,7 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
       canvas.removeEventListener('pointerup', onPointerUp)
       canvas.removeEventListener('pointerleave', onLeave)
     }
-  }, [dataset, nodeReach, onSelectNode, selectedId])
+  }, [graph, onSelectNode, selectedId])
 
   return (
     <div className="neural-graph">
@@ -771,9 +738,7 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
         >
           Todas
         </button>
-        {[...layers]
-          .sort((a, b) => a.id - b.id)
-          .map((layer) => (
+        {layers.map((layer) => (
             <button
               key={layer.id}
               type="button"
@@ -782,7 +747,7 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
             >
               <i
                 className="neural-graph__layer-dot"
-                style={{ background: `hsl(${hueOfAnatomy(layer.anatomyId)} 70% 60%)` }}
+                style={{ background: `hsl(${layer.hue} 70% 60%)` }}
                 aria-hidden="true"
               />
               {layer.name}
@@ -798,9 +763,16 @@ export default function NeuralGraph({ layers, dataset, nodeReach, nodeStates, on
 
       <div ref={legendRef} className="neural-graph__legend" aria-label="Cómo leer el grafo">
         <span className="neural-graph__legend-hint">
-          <b>Color</b> = capa · <b>brillo y tamaño</b> = estado
+          <b>Color</b> = capa · <b>tamaño</b> = papers que la respaldan · pasa el cursor para ver la diana
         </span>
-        <ReachLegend />
+        <ul className="reach-legend" aria-label="Leyenda de estados">
+          {['on', 'split'].map((st) => (
+            <li key={st} className="reach-legend__item">
+              <i className={`reach-pip reach-pip--${st}`} />
+              <span className="reach-legend__label">{STATE_LABEL[st]}</span>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   )

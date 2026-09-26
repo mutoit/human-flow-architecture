@@ -1,13 +1,4 @@
-// Iconos inline (sin dependencia externa — decisión del plan Rev4 §Industry,
-// en vez de añadir lucide-react solo para 3 símbolos).
-
-export function IconPlay(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="icon" {...props}>
-      <path d="M8 5v14l11-7z" />
-    </svg>
-  )
-}
+// Iconos inline, sin dependencia externa.
 
 export function IconExternalLink(props) {
   return (

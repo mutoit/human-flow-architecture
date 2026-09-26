@@ -1,167 +1,92 @@
-# Human Flow architecture — qué es esto
+# Human Flow architecture — qué es y cómo funciona
 
-> **Nota para cualquier agente/IA que trabaje en este repo:** este documento
-> es la fuente de verdad del producto. Si el código no coincide con lo que
-> aquí se describe, el código está desactualizado, no este documento. Antes
-> de cambiar el motor o el esquema de datos, lee esto entero.
+> Fuente de verdad del producto. Si el código no coincide con esto, el
+> código está mal. Las decisiones de método viven en
+> `src/method/decisions.json` (se exportan con cada búsqueda); este
+> documento no las repite, las referencia por su id (`D-…`).
 
-## En una frase
+## Objetivo
 
-Un visor que muestra, capa por capa del cuerpo, **qué dice literalmente
-la evidencia científica real** sobre cómo una variable biológica (una
-hormona, vitamina, hábito, carencia...) afecta al organismo — sin
-calcular, sin inventar cifras intermedias, mostrando incluso cuándo los
-propios estudios se contradicen entre sí.
+Buscar cualquier tema (enfermedad, hormona, vitamina, síntoma…) y ver **por
+qué capas del cuerpo pasa, en qué sentido y por qué recorrido**, con cada
+dato respaldado por una frase literal de un paper real. La app no calcula
+nada clínico ni recomienda nada (D-principio).
 
-## Principio central (no negociable)
+## Qué no hay
 
-**La app no calcula nada clínico. Transcribe.**
+- Ningún dato escrito a mano: todo sale de la búsqueda (el dossier).
+- Ninguna cifra sin frase, ninguna frase sin paper, ningún paper sin PMID.
+- Ningún salto de recorrido que no afirme una frase.
+- Ninguna puntuación de gravedad: tamaños y colores indican cantidad de
+  literatura o de papers, nunca intensidad clínica.
 
-No hay fórmulas propias, no hay ratios inventados, no hay pesos
-numéricos que combinen variables para producir un resultado que ningún
-paper firmó. Cada afirmación que se muestra en pantalla — "en privación
-crónica de sueño, el eje HPA está en alerta" — es una frase que un
-estudio real dice, con su cita al lado. Si no hay un estudio que lo
-diga, esa sección no aparece. Punto.
+## Capas
 
-Esto es la razón de ser de la primera versión del motor (que calculaba
-un ratio a partir de un slider continuo y umbrales) quedó descartada:
-un ratio interpolado entre dos valores clínicos es una cifra que nadie
-midió, por muy bien que sonara la fórmula. Ver "Qué se descarta" más
-abajo.
+13, definidas en `src/method/layers.json` (D-capas): sangre, inmune y
+linfático, cardiovascular, respiratorio, digestivo, urinario, reproductor,
+endocrino, nervioso, sentidos, piel, hueso y articulaciones, músculo. Cada
+capa tiene sus descriptores MeSH (para contar literatura) y su léxico (para
+confirmar a qué capa pertenece una diana).
 
-## Para qué sirve
+## Recorrido de una búsqueda (`src/pipeline/run.js`)
 
-Un médico, un estudiante o cualquier persona busca un tema (una
-patología, una hormona, un hábito como la falta de sueño) y la app le
-enseña, capa por capa del cuerpo, **qué ha demostrado la ciencia real**
-sobre ese tema — qué órganos, tejidos o sistemas se ven afectados, con
-qué grado de consenso, y con las citas exactas de cada afirmación.
+| Etapa | Qué hace | IA | Decisiones |
+|---|---|---|---|
+| 0. Consulta | Pasa el tema a términos de PubMed en inglés y clasifica su tipo | sí (si hay extractor) | D-idioma |
+| 1. Mapa | Cuenta en PubMed los papers del tema en cada capa; % y observado/esperado | no | D-mapa, D-volumen |
+| 2. Selección | Por capa: 2 revisiones + 1 primario, en el orden de PubMed | no | D-seleccion |
+| 3. Lectura | Título, abstract, tipo de publicación y MeSH; diseño y especie salen de ahí | no | D-texto, D-metadatos |
+| 4. Extracción | La IA rellena el esquema fijo; el control mecánico acepta o rechaza cada fila | propone, no decide | D-extractor, D-esquema, D-rol, D-control |
+| 5. PDF abierto | Enlace legal vía OpenAlex | no | D-fuente |
 
-No es una herramienta de diagnóstico. Es una herramienta de consulta de
-evidencia: para ver de un vistazo qué dice la literatura sobre un
-mecanismo, con la trazabilidad completa hasta la fuente.
+Tipos de fila (`src/method/schema.json`):
 
-## Qué muestra en pantalla
+- **Efecto**: tema → diana, con dirección, rol, nivel biológico y frase.
+- **Cifra**: un hueco cerrado según el tipo de tema, con valor y unidad de la frase.
+- **Eslabón**: A → B afirmado en una misma frase.
 
-- **Buscador/catálogo de temas** (punto de entrada principal): el
-  usuario busca o navega por los temas ya recopilados en la base de
-  datos de la app (ej. "vitamina D", "cortisol", "privación de sueño")
-  y los carga desde ahí — no depende de tener un archivo `.json` a
-  mano. Importar un `.json` suelto sigue existiendo como vía adicional
-  (para temas nuevos aún no incorporados al catálogo), pero la vía
-  principal de uso es la biblioteca ya construida.
-- **Escenarios seleccionables**, definidos por lo que la propia
-  literatura del tema distingue como estadios/niveles (ej. "privación
-  aguda <24h" / "restricción crónica <6h/noche" / "privación total") —
-  no son categorías fijas iguales para todos los temas ni un valor
-  interpolado en un slider continuo; cada dataset define los suyos
-  según cómo los agrupan los estudios que lo respaldan.
-- **Lista de capas** (izquierda): las regiones del cuerpo que el tema
-  puede tocar. Una capa se activa si al menos un estudio documenta un
-  efecto ahí para el escenario elegido.
-- **Panel de capas**, con vista de lista y vista de grafo — cada
-  componente concreto se activa según lo que digan los estudios para
-  ese escenario, no según un cálculo.
-- **Ficha de detalle** de cada componente, con:
-  - qué dice la evidencia sobre ese componente en ese escenario,
-  - **si hay contradicción entre estudios, se muestran todos los
-    hallazgos en paralelo** — el nodo se activa igual (hay evidencia de
-    que algo pasa ahí), pero al abrir la ficha el usuario ve cada
-    hallazgo por separado con su propia cita, sin que la app finja un
-    consenso que no existe,
-  - **cómo llegó el efecto hasta ahí**, cuando el propio estudio
-    describe una cadena mecánica concreta (ej. "reduce leptina, lo que
-    reduce saciedad") — con el verbo real de cada salto, no una flecha
-    muda,
-  - **a qué otros componentes afecta él a su vez**, con la misma lógica.
-- **Lecturas / Procedencia:** dentro de cada ficha, una pestaña con:
-  - los estudios reales que respaldan cada afirmación concreta (no una
-    lista genérica al final del nodo — la cita cuelga de la frase que
-    respalda),
-  - **cómo se ha usado esa fuente** — qué parte exacta del estudio
-    sustenta la afirmación mostrada (ej. "tabla 3, grupo de restricción
-    <6h", o "conclusión del meta-análisis, no hallazgo primario") — para
-    que el usuario pueda verificarlo él mismo sin tener que releer el
-    paper entero,
-  - **exportable**: el usuario puede exportar esa procedencia (citas +
-    cómo se han usado) para su propio uso o verificación externa.
+## Qué se muestra
 
-## Cómo funciona por dentro (sin tecnicismos)
+- **Capas** con estado (D-estado-capa): Efecto citado · Solo literatura ·
+  Sin literatura · No consultada. «Solo literatura» no es «sin efecto».
+- **Ficha de capa**: conteos de PubMed y la consulta exacta; dianas con su
+  conteo de dirección (D-direccion) y cifras como mediana + rango + n
+  (D-cifra); papers leídos para esa capa.
+- **Ficha de diana**: cada frase que la respalda con su paper (diseño,
+  especie, año) y los recorridos que pasan por ella.
+- **Recorrido**: cadenas tema → diana → diana, cada salto con su frase;
+  «ensamblada» si mezcla papers (D-cadena).
+- **Grafo**: lo mismo en red; color = capa, tamaño = papers que la respaldan.
+- **Fuentes**: informe (lo mostrado, las frases usadas, las filas
+  rechazadas y el registro completo de decisiones) y el dossier JSON, que
+  se puede reabrir; al reabrirlo se vuelve a pasar el control (D-reproducible).
 
-1. Cada tema es una **base de conocimiento**: componentes del cuerpo,
-   agrupados en capas, con lo que la evidencia dice de cada uno para
-   cada escenario clínico reconocido en la literatura de ese tema.
-2. El usuario elige un tema (del catálogo o por import) y un escenario.
-3. La app **busca en los datos ya recopilados** qué componentes tienen
-   información para ese escenario y los pinta activos — no interpola,
-   no promedia, no calcula un estado intermedio.
-4. Si dos estudios se contradicen sobre el mismo componente, ambos se
-   guardan y se muestran — la app no decide cuál "gana".
-5. Nada de esto está escrito a mano por pantalla — todo sale de una
-   base de datos de temas, cada uno con su propio archivo de origen.
+## Piezas del código
 
-## De dónde sale la base de datos
+| Carpeta | Contenido |
+|---|---|
+| `src/method/` | capas, esquema y decisiones (datos versionados) |
+| `src/engine/` | PubMed / OpenAlex, forma del paper, nombres de estados |
+| `src/pipeline/` | recorrido, control mecánico, agregación, cadenas, grafo, dossier |
+| `src/export/` | informe, dossier e importación |
+| `src/detail/`, `src/layers/`, `src/search/` | interfaz |
+| `worker/` | servicio extractor (la clave de la IA vive aquí) |
+| `test/` | pruebas del núcleo (`npm test`) |
 
-Hoy, la recopilación es manual: una persona busca los papers reales de
-un tema y rellena el dataset siguiendo el esquema documentado (ver
-`docs/DATASET_PROMPT.md` — pendiente de actualizar al nuevo modelo sin
-cálculo, ver "Qué queda pendiente" abajo).
+## Puesta en marcha
 
-**La arquitectura debe dejar sitio, desde ya, para automatizar esta
-recopilación con una API de LLM** que busque y proponga estudios reales
-para un tema — pero como paso de *generación asistida*, nunca como
-fuente de verdad directa: todo lo que proponga una IA pasa por
-verificación (¿existe de verdad el PMID/DOI?) y por revisión humana
-antes de entrar al catálogo. La IA ayuda a encontrar y resumir, no
-certifica.
+1. App: `npm install && npm run dev`. Sin extractor funciona la etapa 1 (mapa).
+2. Extractor: en `worker/`, `npm install`, `npx wrangler secret put ANTHROPIC_API_KEY`,
+   `npm run deploy`; fijar `ALLOWED_ORIGIN` en `worker/wrangler.toml` y arrancar
+   o construir la app con `VITE_EXTRACTOR_URL=<url del worker>`.
 
-## Lo que se descarta de la versión anterior
+## Pendiente (no se da por hecho)
 
-- **El motor de propagación por ratio/umbral** (`ratio × thresholdMax`
-  comparado contra `thresholdMin/thresholdMax`, con un slider continuo)
-  queda descartado como mecanismo de cálculo del estado de un nodo. Un
-  valor interpolado entre dos puntos clínicos no es un dato real.
-- **El promedio ponderado de `strength` en nodos con varias entradas**
-  queda descartado por el mismo motivo: era un número inventado
-  combinando otros números inventados.
-- **La detección de ciclos con cálculo iterativo** (para bucles de
-  retroalimentación hormonal) deja de ser necesaria — al no calcular
-  nada, no hay nada que pueda no converger.
-- El **slider continuo de una sola variable primaria** deja de ser la
-  única vía de entrada — se sustituye por escenarios discretos que la
-  propia literatura del tema define.
-
-## Lo que no hace (límites honestos)
-
-- No inventa citas ni cifras clínicas — si no hay fuente real para una
-  afirmación, esa afirmación no aparece.
-- No calcula ni infiere estados intermedios entre lo que dicen los
-  estudios — si la evidencia no cubre un escenario o un componente, se
-  queda sin datos y lo dice explícitamente, no rellena el hueco.
-- No decide "quién tiene razón" cuando los estudios se contradicen —
-  muestra el desacuerdo tal cual.
-- No inventa consejo clínico. Si un paper afirma dosis, riesgo o
-  «qué hacer», la app lo muestra citado; el médico interpreta. Si el
-  estudio no lo dice, esa cifra no aparece.
-- El nivel de detalle (ej. diferenciar un músculo concreto de otro) está
-  limitado por lo que la literatura realmente diferencia — la app no
-  inventa granularidad que la ciencia no ofrece.
-
-## Qué queda pendiente de cerrar (para que ningún agente lo dé por hecho)
-
-- El esquema exacto del nuevo dataset (cómo se modelan escenarios
-  definidos por tema, citas por afirmación en vez de por nodo, y
-  hallazgos contradictorios en paralelo) todavía no está escrito —
-  `docs/DATASET_PROMPT.md` sigue describiendo el modelo antiguo
-  (umbrales, ratio, `strength` numérico) y hay que reescribirlo antes de
-  generar datasets nuevos con este documento.
-- El buscador de literatura (Europe PMC / PubMed) ya está en el visor:
-  lista papers + abstract + enlaces oficiales. Todavía no genera un
-  dataset de capas a partir de esos papers (eso sigue el hueco LLM +
-  revisión humana).
-- El formato de exportación de "procedencia + cómo se ha usado" no está
-  definido.
-- La forma concreta de la futura integración con una API de LLM
-  (qué hace, qué no hace, cómo se marca "sin verificar" hasta revisión
-  humana) no está diseñada, solo reservado el hueco arquitectónico.
+- Verificar contra MeSH Browser los descriptores de cada capa en una
+  ejecución real (la app ya registra los términos que PubMed no reconoce).
+- Normalizar dianas a MeSH/HPO para que los sinónimos unan cadenas (D-cadena).
+- Contraste automático con HPO y CTD (D-validacion).
+- Texto completo abierto de PMC (D-texto).
+- El control mecánico comprueba que cada dato está en su frase, no que el
+  hueco elegido sea el correcto (p. ej. una concentración marcada como
+  prevalencia); por eso la frase se muestra siempre al lado del dato.

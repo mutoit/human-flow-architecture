@@ -1,188 +1,181 @@
-import { useEffect, useMemo, useState } from 'react'
-import { propagate, pathFromPrimary } from './engine/propagation.js'
-import { reachFromState } from './engine/visualState.js'
-import { strongestReach } from './engine/reachMeta.js'
+import { useMemo, useState, useEffect, useCallback } from 'react'
+import { runTopic } from './pipeline/run.js'
+import { layerSummaries, targetsOf } from './pipeline/aggregate.js'
+import { chainsOf } from './pipeline/chain.js'
+import { graphOf } from './pipeline/graph.js'
+import { extractorAvailable } from './pipeline/extractor.js'
+import { LAYER_STATE_ORDER } from './engine/stateMeta.js'
+import TopicSearch from './search/TopicSearch.jsx'
 import LayerList from './layers/LayerList.jsx'
 import LayerCascade from './layers/LayerCascade.jsx'
 import NeuralGraph from './layers/NeuralGraph.jsx'
-import FlowSummary from './layers/FlowSummary.jsx'
-import DetailCard from './detail/DetailCard.jsx'
-import ScenarioSelector from './detail/ScenarioSelector.jsx'
+import PipelineView from './layers/PipelineView.jsx'
+import StateLegend from './layers/StateLegend.jsx'
+import LayerDetail from './detail/LayerDetail.jsx'
+import TargetDetail from './detail/TargetDetail.jsx'
 import DensitySelector from './detail/DensitySelector.jsx'
-import VitalsBar from './detail/VitalsBar.jsx'
-import FuentesMenu from './detail/FuentesMenu.jsx'
-import TopicSearch from './detail/TopicSearch.jsx'
-import ImportControl from './data/ImportControl.jsx'
-import defaultDataset from './data/vitamin-d.json'
+import FuentesMenu from './export/FuentesMenu.jsx'
+import DossierImport from './export/DossierImport.jsx'
 
 const DENSITY_KEY = 'hf-density'
 
 function initialDensity() {
-  if (typeof window === 'undefined') return 'm'
-  const stored = window.localStorage.getItem(DENSITY_KEY)
-  return stored === 's' || stored === 'm' || stored === 'l' ? stored : 'm'
+  try {
+    const stored = window.localStorage.getItem(DENSITY_KEY)
+    return stored === 's' || stored === 'l' ? stored : 'm'
+  } catch {
+    return 'm'
+  }
+}
+
+/** Primera capa con más información: efecto > literatura > resto. */
+function bestLayer(summaries) {
+  for (const state of LAYER_STATE_ORDER) {
+    const hit = summaries.find((s) => s.state === state)
+    if (hit) return hit.layer.id
+  }
+  return summaries[0]?.layer.id ?? null
+}
+
+function Empty() {
+  return (
+    <div className="empty-state">
+      <h2 className="empty-state__title">Busca un tema para ver por qué capas del cuerpo pasa</h2>
+      <p>
+        La app cuenta en PubMed cuánta literatura une el tema con cada una de las 13 capas, lee revisiones y estudios de
+        cada capa y enseña solo frases literales de esos papers, validadas una a una. Nada está escrito a mano.
+      </p>
+      <p>
+        Todo lo que ves —y cómo se decidió mostrarlo— se exporta desde <b>Fuentes</b>.
+        {extractorAvailable() ? '' : ' Sin servicio extractor configurado solo se verá el mapa de literatura (etapa 1).'}
+      </p>
+    </div>
+  )
 }
 
 export default function App() {
   const [density, setDensity] = useState(initialDensity)
-  const [dataset, setDataset] = useState(defaultDataset)
-  const scenarios = dataset.config.severityScenarios ?? []
-  const [scenarioId, setScenarioId] = useState(scenarios[1]?.id ?? scenarios[0]?.id)
-  const scenario = scenarios.find((s) => s.id === scenarioId) ?? scenarios[0]
-
-  // Ficha A: selección global (rail de capas + muñeco).
-  const [activeLayerId, setActiveLayerId] = useState(dataset.layers[0]?.id)
-  const [activeNodeId, setActiveNodeId] = useState(dataset.nodes.find((n) => n.layer === dataset.layers[0]?.id)?.id ?? null)
-  // Ficha B: selección independiente, solo desde el panel de subcapas.
-  const [cascadeNodeId, setCascadeNodeId] = useState(null)
-  const [layersView, setLayersView] = useState('capas')
-
-  const { nodeStates } = useMemo(() => propagate(dataset, scenario?.id), [dataset, scenario?.id])
-
-  const nodeReach = useMemo(() => {
-    const m = {}
-    for (const node of dataset.nodes) {
-      m[node.id] = reachFromState(nodeStates[node.id])
-    }
-    return m
-  }, [dataset, nodeStates])
-
-  const layerReach = useMemo(() => {
-    const m = {}
-    for (const layer of dataset.layers) {
-      const ids = dataset.nodes.filter((n) => n.layer === layer.id).map((n) => n.id)
-      m[layer.id] = strongestReach(ids.map((id) => nodeReach[id] ?? 'spared'))
-    }
-    return m
-  }, [dataset, nodeReach])
-
-  const activeLayer = dataset.layers.find((l) => l.id === activeLayerId) ?? null
-  const activeNode = dataset.nodes.find((n) => n.id === activeNodeId) ?? null
-  const chain = activeNode ? pathFromPrimary(dataset, activeNode.id) : []
-
-  const cascadeNode = dataset.nodes.find((n) => n.id === cascadeNodeId) ?? null
-  const cascadeLayer = cascadeNode ? dataset.layers.find((l) => l.id === cascadeNode.layer) ?? null : null
-  const cascadeChain = cascadeNode ? pathFromPrimary(dataset, cascadeNode.id) : []
+  const [dossier, setDossier] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState(null)
+  const [activeLayerId, setActiveLayerId] = useState(null)
+  const [activeTargetKey, setActiveTargetKey] = useState(null)
+  const [view, setView] = useState('recorrido')
 
   useEffect(() => {
     document.documentElement.dataset.density = density
-    window.localStorage.setItem(DENSITY_KEY, density)
+    try {
+      window.localStorage.setItem(DENSITY_KEY, density)
+    } catch {
+      /* sin almacenamiento */
+    }
   }, [density])
 
-  useEffect(() => {
-    // Reimportar dataset reinicia la selección al primer nodo de la primera capa.
-    const firstLayer = dataset.layers[0]?.id
-    const firstNode = dataset.nodes.find((n) => n.layer === firstLayer)?.id ?? null
-    const list = dataset.config.severityScenarios ?? []
-    setActiveLayerId(firstLayer)
-    setActiveNodeId(firstNode)
-    setCascadeNodeId(null)
-    setScenarioId((id) => (list.some((s) => s.id === id) ? id : (list[1]?.id ?? list[0]?.id)))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataset])
+  const summaries = useMemo(() => (dossier ? layerSummaries(dossier) : []), [dossier])
+  const targets = useMemo(() => (dossier ? targetsOf(dossier) : []), [dossier])
+  const chains = useMemo(() => (dossier ? chainsOf(dossier) : []), [dossier])
+  const graph = useMemo(() => (dossier ? graphOf(dossier, targets) : null), [dossier, targets])
 
-  function selectLayer(layerId) {
-    setActiveLayerId(layerId)
-    const current = dataset.nodes.find((n) => n.id === activeNodeId)
-    if (!current || current.layer !== layerId) {
-      const rep = dataset.nodes.find((n) => n.layer === layerId)
-      setActiveNodeId(rep?.id ?? null)
+  const loadDossier = useCallback((d) => {
+    setDossier(d)
+    setActiveTargetKey(null)
+    setActiveLayerId((current) => current ?? bestLayer(layerSummaries(d)))
+  }, [])
+
+  async function search(topic) {
+    setBusy(true)
+    setActiveLayerId(null)
+    setActiveTargetKey(null)
+    try {
+      const final = await runTopic(topic, (d, p) => {
+        setDossier(d)
+        setProgress(p)
+      })
+      setDossier(final)
+      setActiveLayerId(bestLayer(layerSummaries(final)))
+      const errors = final.errors.map((e) => e.message).join(' · ')
+      setProgress((p) => ({ ...p, message: errors ? `${p?.message ?? ''} Incidencias: ${errors}` : p?.message }))
+    } finally {
+      setBusy(false)
     }
   }
+
+  const activeIndex = summaries.findIndex((s) => s.layer.id === activeLayerId)
+  const activeSummary = summaries[activeIndex] ?? null
+  const activeTarget = targets.find((t) => t.key === activeTargetKey) ?? null
+  const counts = Object.fromEntries(LAYER_STATE_ORDER.map((k) => [k, summaries.filter((s) => s.state === k).length]))
 
   return (
     <div className="app">
       <header className="app__header">
         <h1 className="app__title">Human Flow architecture</h1>
-        <TopicSearch />
+        <TopicSearch busy={busy} progress={progress} onSearch={search} />
         <div className="app__header-controls">
           <DensitySelector value={density} onChange={setDensity} />
-          <FuentesMenu dataset={dataset} />
-          <ImportControl onImport={setDataset} />
+          <FuentesMenu dossier={dossier} />
+          <DossierImport onImport={loadDossier} />
         </div>
       </header>
 
       <main className="app__main">
-        <div className="app__toprow">
-          <ScenarioSelector scenarios={scenarios} activeId={scenarioId} onChange={setScenarioId} />
-          <span className="app__dataset-label" title="Dataset cargado actualmente">
-            {dataset.config?.name ?? 'Dataset'}
-          </span>
-          <VitalsBar dataset={dataset} nodeStates={nodeStates} />
-        </div>
-
-        <div className="layout">
-          <div className="layout__rail">
-            <LayerList layers={dataset.layers} activeLayerId={activeLayerId} layerReach={layerReach} onSelect={selectLayer} />
-          </div>
-
-          <div className="layout__views">
-            <div className="layout__panels">
-              <div className="layout__panel">
-                <p className="layout__panel-label">Resultado global — capa activa</p>
-                <DetailCard
-                  dataset={dataset}
-                  layer={activeLayer}
-                  node={activeNode}
-                  nodeState={activeNode ? nodeStates[activeNode.id] : null}
-                  reach={activeNode ? nodeReach[activeNode.id] : 'spared'}
-                  chain={chain}
-                  scenarioId={scenarioId}
-                />
-              </div>
-              <div className="layout__panel">
-                <p className="layout__panel-label">Detalle — panel de capas</p>
-                <DetailCard
-                  dataset={dataset}
-                  layer={cascadeLayer}
-                  node={cascadeNode}
-                  nodeState={cascadeNode ? nodeStates[cascadeNode.id] : null}
-                  reach={cascadeNode ? nodeReach[cascadeNode.id] : 'spared'}
-                  chain={cascadeChain}
-                  scenarioId={scenarioId}
-                  emptyHint="Pincha un nodo en el panel de capas (Capas o Grafo) para ver su detalle aquí."
-                />
-              </div>
+        {!dossier ? (
+          <Empty />
+        ) : (
+          <>
+            <div className="app__toprow">
+              <span className="app__dataset-label" title={dossier.map.translation ?? ''}>
+                «{dossier.input}» → <code>{dossier.queryUsed}</code> · {dossier.map.total?.toLocaleString('es') ?? '—'} papers en
+                PubMed · {Object.keys(dossier.papers).length} leídos
+              </span>
+              <StateLegend counts={counts} />
             </div>
 
-            <div className="layers-panel">
-              <div className="layers-panel__tabs" role="tablist">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={layersView === 'capas'}
-                  className={`layers-panel__tab${layersView === 'capas' ? ' layers-panel__tab--active' : ''}`}
-                  onClick={() => setLayersView('capas')}
-                >
-                  Capas
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={layersView === 'grafo'}
-                  className={`layers-panel__tab${layersView === 'grafo' ? ' layers-panel__tab--active' : ''}`}
-                  onClick={() => setLayersView('grafo')}
-                >
-                  Grafo
-                </button>
+            <div className="layout">
+              <div className="layout__rail">
+                <LayerList summaries={summaries} activeLayerId={activeLayerId} onSelect={setActiveLayerId} />
               </div>
 
-              {layersView === 'capas' ? (
-                <LayerCascade layers={dataset.layers} dataset={dataset} nodeReach={nodeReach} onSelectNode={setCascadeNodeId} />
-              ) : (
-                <NeuralGraph
-                  layers={dataset.layers}
-                  dataset={dataset}
-                  nodeReach={nodeReach}
-                  nodeStates={nodeStates}
-                  onSelectNode={setCascadeNodeId}
-                />
-              )}
+              <div className="layout__views">
+                <div className="layout__panels">
+                  <div className="layout__panel">
+                    <LayerDetail summary={activeSummary} index={activeIndex} activeTargetKey={activeTargetKey} onSelectTarget={setActiveTargetKey} />
+                  </div>
+                  <div className="layout__panel">
+                    <TargetDetail target={activeTarget} dossier={dossier} chains={chains} />
+                  </div>
+                </div>
 
-              <FlowSummary dataset={dataset} nodeReach={nodeReach} />
+                <div className="layers-panel">
+                  <div className="layers-panel__tabs" role="tablist">
+                    {[
+                      ['recorrido', 'Recorrido'],
+                      ['capas', 'Capas'],
+                      ['grafo', 'Grafo'],
+                    ].map(([id, label]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        role="tab"
+                        aria-selected={view === id}
+                        className={`layers-panel__tab${view === id ? ' layers-panel__tab--active' : ''}`}
+                        onClick={() => setView(id)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {view === 'recorrido' ? (
+                    <PipelineView chains={chains} dossier={dossier} onSelectTarget={setActiveTargetKey} />
+                  ) : view === 'capas' ? (
+                    <LayerCascade summaries={summaries} activeTargetKey={activeTargetKey} onSelectTarget={setActiveTargetKey} />
+                  ) : (
+                    <NeuralGraph graph={graph} onSelectNode={setActiveTargetKey} />
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </main>
     </div>
   )
